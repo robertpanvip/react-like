@@ -4,22 +4,21 @@
   "description": "",
   "files": [
     "index.ts",
-    "jsx-runtime.ts",
-    "jsx-dev-runtime.ts"
+    "jsx-runtime.ts"
   ],
   "main": "index.ts",
-  "exports": {
-    ".": {
-      "default": "./index.ts"
-    },
-    "./package.json": "./package.json",
-    "./jsx-runtime": "./jsx-runtime.ts",
-    "./jsx-dev-runtime": "./jsx-dev-runtime.ts"
-  },
   "scripts": {
+    "compile": "es-pkg compile",
+    "doc": "es-pkg doc",
+    "publish": "es-pkg publish"
   },
   "dependencies": {
-    "react": "*"
+    "react": "^18.2.0",
+    "@types/react": "^18.0.15"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "es-pkg": "latest"
   },
   "private": true
 }
