@@ -1,0 +1,25 @@
+{
+  "name": "@react-like/react",
+  "version": "1.0.0",
+  "description": "",
+  "files": [
+    "index.ts",
+    "jsx-runtime.ts",
+    "jsx-dev-runtime.ts"
+  ],
+  "main": "index.ts",
+  "exports": {
+    ".": {
+      "default": "./index.ts"
+    },
+    "./package.json": "./package.json",
+    "./jsx-runtime": "./jsx-runtime.ts",
+    "./jsx-dev-runtime": "./jsx-dev-runtime.ts"
+  },
+  "scripts": {
+  },
+  "dependencies": {
+    "react": "*"
+  },
+  "private": true
+}

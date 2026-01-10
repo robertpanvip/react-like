@@ -1,0 +1,36 @@
+{
+  "name": "@react-like/vue",
+  "description": "react-shim",
+  "version": "18.2.0",
+  "type": "module",
+  "main": "./index.ts",
+  "scripts": {
+  },
+  "files": [
+    "index.ts",
+    "jsx-runtime.ts",
+    "react-router.ts"
+  ],
+  "dependencies": {
+    "vue-router": "latest"
+  },
+  "devDependencies": {
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "react-vue-adapter"
+  ],
+  "homepage": "https://github.com/robertpanvip@163.com/react-vue-adapter.git",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/robertpanvip@163.com/react-vue-adapter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/robertpanvip@163.com/react-vue-adapter/issues"
+  },
+  "author": "robertpanvip@163.com",
+  "license": "ISC"
+}
