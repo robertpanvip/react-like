@@ -7,6 +7,7 @@
     "jsx-runtime.ts"
   ],
   "main": "index.ts",
+  "typings": "index.d.ts",
   "scripts": {
     "compile": "es-pkg compile",
     "doc": "es-pkg doc",
@@ -19,6 +20,5 @@
   "devDependencies": {
     "typescript": "^5.2.2",
     "es-pkg": "latest"
-  },
-  "private": true
+  }
 }
