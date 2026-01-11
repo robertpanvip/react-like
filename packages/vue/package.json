@@ -4,6 +4,7 @@
   "version": "18.2.0",
   "type": "module",
   "main": "./index.ts",
+  "types": "./index.ts",
   "scripts": {
     "compile": "es-pkg compile",
     "doc": "es-pkg doc",

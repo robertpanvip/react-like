@@ -13,7 +13,7 @@ import {
     Ref as VueRef,
     Slots,
 } from 'vue'
-
+import type { DefineSetupFnComponent } from 'vue' // 顶部新增这行导入
 import {
     createClassComponent,
     depsEqual,
@@ -502,7 +502,7 @@ export type PropsWithoutRef<P> = React.PropsWithoutRef<P>;
 export type RefAttributes<T> = React.RefAttributes<T>;
 
 /* defineComponent（关键：重置 hookIndex）                             */
-export function defineComponent<P, T extends Function>(fn: T) {
+export function defineComponent<P extends object, T extends Function>(fn: T):DefineSetupFnComponent<P, {}, {}>  {
     return defineVueComponent<P>({
         inheritAttrs: false,
         setup(_, {slots, expose}) {
@@ -525,7 +525,7 @@ export function defineComponent<P, T extends Function>(fn: T) {
                 return render.$typeof === FORWARD ? render(props, ref) : render(props)
             }
         }
-    })
+    }) as DefineSetupFnComponent<P, {}, {}>
 }
 
 export default React

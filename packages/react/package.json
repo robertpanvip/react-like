@@ -7,7 +7,7 @@
     "jsx-runtime.ts"
   ],
   "main": "index.ts",
-  "typings": "index.d.ts",
+  "typings": "index.ts",
   "scripts": {
     "compile": "es-pkg compile",
     "doc": "es-pkg doc",
