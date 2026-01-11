@@ -10,7 +10,7 @@ import {
     useState,
     ReactNode,
 } from "./index";
-import {shallowReactive, watch} from "vue";
+import {getCurrentInstance, shallowReactive, watch} from "vue";
 
 const PIXEL_PROPERTIES = [
     'width', 'height',
@@ -152,6 +152,7 @@ export function createClassComponent<P, S = {}>(ComponentClass: typeof Component
     return forwardRef((props: P, ref) => {
         // 1. 创建组件实例（仅在首次渲染时）
         const {current: instance} = useRef(new ComponentClass(props));
+        (instance as any)._instance = getCurrentInstance();
         const cache = useRef<ReactNode>(null);
 
         const [state, setState] = useState(instance.state);

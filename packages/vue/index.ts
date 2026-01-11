@@ -55,7 +55,7 @@ const PROVIDER = Symbol('provider')
 namespace React {
     export const Suspense = VueSuspense
     export const Fragment = VueFragment
-
+    export const StrictMode  = VueFragment;
     export type SetStateAction<S> = S | ((prevState: S) => S);
     export type Dispatch<A> = (value: A) => void;
     export type Reducer<S, A> = (prevState: S, action: A) => S;
@@ -63,6 +63,7 @@ namespace React {
     export type JSXElementConstructor<P = any> = (props: P) => any
     export type ReactElement = VNode;
     export type ReactNode = VNode | string | number | boolean | null | undefined | void
+    export type ReactInstance = Component<any,any> | Element;
 
     export interface RefObject<T> extends VueRef {
         readonly current: T | null
@@ -111,6 +112,9 @@ namespace React {
     export interface RefAttributes<T> extends Attributes {
         ref?: LegacyRef<T> | undefined;
     }
+
+    export type ReactPortal = ReactElement
+
 
     export function useState<T>(initialState: T | (() => T)): [T, Dispatch<SetStateAction<T>>] {
         const {hooks, index, inst} = getHookState()
@@ -483,6 +487,7 @@ export const cloneElement = React.cloneElement;
 export const createRef = React.createRef;
 export const forwardRef = React.forwardRef;
 export const Fragment = React.Fragment;
+export const StrictMode  = React.StrictMode;
 export const isValidElement = React.isValidElement;
 export const version = React.version;
 export const Component = React.Component;
@@ -500,6 +505,8 @@ export type MutableRefObject<T> = React.MutableRefObject<T>;
 export type ForwardRefExoticComponent<P> = React.ForwardRefExoticComponent<P>;
 export type PropsWithoutRef<P> = React.PropsWithoutRef<P>;
 export type RefAttributes<T> = React.RefAttributes<T>;
+export type ReactPortal = React.ReactPortal;
+export type ReactInstance = React.ReactInstance;
 
 /* defineComponent（关键：重置 hookIndex）                             */
 export function defineComponent<P extends object, T extends Function>(fn: T):DefineSetupFnComponent<P, {}, {}>  {
