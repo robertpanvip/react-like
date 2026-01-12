@@ -5,5 +5,5 @@ export default defineConfig({
     "cjs": false,
     "typings": "./src",
     "publishDir": "./npm",
-    include: ["./index.ts", "./jsx-runtime.ts", "./react-router.ts"]
+    include: ["./index.ts", "./jsx-runtime.ts", "./react-router.ts","./react-dom.ts","./client.ts",]
 })

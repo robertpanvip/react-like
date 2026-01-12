@@ -1,8 +1,8 @@
-import {
+import type {
     ReactInstance,
     ReactNode,
     ReactPortal
-} from '../index';
+} from './index';
 import {createRoot, type Root} from './client'
 import {Teleport, createVNode, getCurrentInstance} from 'vue'
 
@@ -16,7 +16,7 @@ export function findDOMNode(target: ReactInstance | null | undefined): Element |
     return null;
 }
 
-export type Container = Element | Document | DocumentFragment;
+export type Container = Element | DocumentFragment;
 let app: Root | null;
 
 export function render(
@@ -24,17 +24,20 @@ export function render(
     container: Container | null,
     callback?: () => void
 ): void {
-    app = createRoot(container);
-    app.render(element)
+    if (container) {
+        app = createRoot(container);
+        app.render(element)
+        callback?.()
+    }
 }
 
-export function unmountComponentAtNode(container: Container): boolean {
+export function unmountComponentAtNode(_container: Container): boolean {
     app?.unmount()
     return true;
 }
 
 export function createPortal(children: ReactNode, container: Container, key?: null | string): ReactPortal {
-    return createVNode(Teleport, {to: container, key}, children)
+    return createVNode(Teleport, {to: container, key: key || ""}, children)
 }
 
 export function flushSync<R>(fn: () => R): R {
@@ -46,5 +49,5 @@ export function flushSync<R>(fn: () => R): R {
 export function unstable_batchedUpdates(callback: () => any): void {
     callback();
     const ins = getCurrentInstance();
-    ins.update();
+    ins?.update();
 }

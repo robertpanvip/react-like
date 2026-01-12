@@ -1,5 +1,6 @@
 import {h, VNode, Fragment as VueFragment} from 'vue';
 import {normalizeStyle} from "./util";
+import {DEFINE_COMPONENT, defineComponent} from "./index";
 
 export namespace JSX {
     export interface Element extends VNode {
@@ -53,8 +54,13 @@ const ReactElement = function (type, key, ref, self, source, owner, config) {
     }
     if (key != null) props.key = key
     if (ref != null) props.ref = ref
-    const normalized = Array.isArray(children) ? children : [children];
-
+    let normalized = Array.isArray(children) ? children : [children];
+    if(normalized.length === 1){
+        normalized = normalized[0]
+    }
+    if (typeof type === 'function' && type.$typeof !== DEFINE_COMPONENT) {
+        type = defineComponent(type);
+    }
     if (typeof type === "string") {
         return h(type, props, normalized);
     }

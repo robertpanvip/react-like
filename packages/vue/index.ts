@@ -13,8 +13,9 @@ import {
     Ref as VueRef,
     Slots,
 } from 'vue'
-import type { DefineSetupFnComponent } from 'vue' // 顶部新增这行导入
+import type {DefineSetupFnComponent, ObjectEmitsOptions} from 'vue' // 顶部新增这行导入
 import {
+    clone,
     createClassComponent,
     depsEqual,
     normalizeChildren,
@@ -51,11 +52,12 @@ function getHookState() {
 }
 
 const FORWARD = Symbol('forward-ref')
-const PROVIDER = Symbol('provider')
+const PROVIDER = Symbol('provider');
+export const DEFINE_COMPONENT = Symbol('define-component')
 namespace React {
     export const Suspense = VueSuspense
     export const Fragment = VueFragment
-    export const StrictMode  = VueFragment;
+    export const StrictMode = VueFragment;
     export type SetStateAction<S> = S | ((prevState: S) => S);
     export type Dispatch<A> = (value: A) => void;
     export type Reducer<S, A> = (prevState: S, action: A) => S;
@@ -63,7 +65,7 @@ namespace React {
     export type JSXElementConstructor<P = any> = (props: P) => any
     export type ReactElement = VNode;
     export type ReactNode = VNode | string | number | boolean | null | undefined | void
-    export type ReactInstance = Component<any,any> | Element;
+    export type ReactInstance = Component<any, any> | Element;
 
     export interface RefObject<T> extends VueRef {
         readonly current: T | null
@@ -74,7 +76,7 @@ namespace React {
     }
 
     export type RefCallback<T> = ((instance: T | null) => void)
-    export type Ref<T> = RefCallback<T> | RefObject<T> | null;
+    export type Ref<T = any> = RefCallback<T> | RefObject<T> | null;
     export type LegacyRef<T> = string | Ref<T>;
     export type ForwardedRef<T> = ((instance: T | null) => void) | MutableRefObject<T | null> | null;
     export type Key = string | number | bigint;
@@ -267,10 +269,18 @@ namespace React {
 
         props.style && (props.style = normalizeStyle(props.style))
 
-        const normalized =
+        if(typeof type === 'function'&&type.$typeof !== DEFINE_COMPONENT) {
+            type = defineComponent(type);
+        }
+
+        let normalized =
             Array.isArray(children)
                 ? children
                 : [children]
+
+        if(normalized.length === 1){
+            normalized = normalized[0]
+        }
 
         if (typeof type === 'string') {
             // 原生元素：永远普通 children
@@ -421,7 +431,7 @@ namespace React {
 
         componentDidMount?(): void;
 
-        shouldComponentUpdate?(nextProps: P, nextState: S,nextContext: any): boolean;
+        shouldComponentUpdate?(nextProps: P, nextState: S, nextContext: any): boolean;
 
         componentDidUpdate?(prevProps: P, prevState: S): void;
 
@@ -487,7 +497,7 @@ export const cloneElement = React.cloneElement;
 export const createRef = React.createRef;
 export const forwardRef = React.forwardRef;
 export const Fragment = React.Fragment;
-export const StrictMode  = React.StrictMode;
+export const StrictMode = React.StrictMode;
 export const isValidElement = React.isValidElement;
 export const version = React.version;
 export const Component = React.Component;
@@ -508,11 +518,28 @@ export type RefAttributes<T> = React.RefAttributes<T>;
 export type ReactPortal = React.ReactPortal;
 export type ReactInstance = React.ReactInstance;
 
+export type DefineComponent<Props extends Record<string, any>, E extends ObjectEmitsOptions = {}, > =
+    DefineSetupFnComponent<Props, E, any>
+    & {
+    $typeof: symbol
+};
+
+type PickOnKeys<T> = {
+    [K in keyof T]: K extends `on${string}` ? K : never
+}[keyof T]
+
+type RemoveOnPrefix<K extends string> = K extends `on${infer First}${infer Rest}`
+    ? `${Lowercase<First>}${Rest}`
+    : K;
+type ExtractEmits<T> = {
+    [K in PickOnKeys<T> as RemoveOnPrefix<K>]: T[K] extends ((...args: any[]) => any) ? T[K] : () => void
+};
+
 /* defineComponent（关键：重置 hookIndex）                             */
-export function defineComponent<P extends object, T extends Function>(fn: T):DefineSetupFnComponent<P, {}, {}>  {
-    return defineVueComponent<P>({
+export function defineComponent<P extends Record<string, any>, T extends (props: P, ref?: unknown) => any>(fn: T): DefineComponent<P, ExtractEmits<P>> {
+    const Comp = defineVueComponent<P>({
         inheritAttrs: false,
-        setup(_, {slots, expose}) {
+        setup(_, {slots, expose, emit}) {
             const attrs = useAttrs();
             const ref = useExposeRef(expose);
             let render = (fn as any);
@@ -525,15 +552,33 @@ export function defineComponent<P extends object, T extends Function>(fn: T):Def
                 inst.idx = 0;
 
                 const len = (inst.vnode.children as Slots)?.default?.length || 0;
-                const props = {
+                const _props = {
                     ...attrs,
                     children: len !== 0 ? slots.default : slots.default?.()
                 }
+                const entries = Object.entries(_props).map(([key, value]) => {
+                    if (key.startsWith('on') && typeof value === 'function') {
+                        return [key, function (this: typeof _props, ...rest: unknown[]) {
+                            const eventName = key.slice(2).replace(/^[A-Z]/, (s) => s.toLowerCase());
+                            emit(eventName, ...rest);
+                            return value.call(this, ...rest)
+                        }];
+                    }
+                    return [key, value];
+                })
+                const props = Object.fromEntries(entries) as typeof _props;
                 return render.$typeof === FORWARD ? render(props, ref) : render(props)
             }
         }
-    }) as DefineSetupFnComponent<P, {}, {}>
+    })
+    Comp.$typeof = DEFINE_COMPONENT;
+    clone(Comp,fn);
+    return Comp as unknown as DefineComponent<P, ExtractEmits<P>>
 }
+
+export * from './client'
+
+export * from './react-dom'
 
 export default React
 

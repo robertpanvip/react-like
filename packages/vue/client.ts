@@ -1,4 +1,4 @@
-import React from '../index'
+import type React from './index'
 import {createApp, App} from 'vue'
 
 export interface RootOptions {
@@ -12,8 +12,8 @@ export interface Root {
     unmount(): void;
 }
 
-export function createRoot(container: Element | DocumentFragment, options?: RootOptions): Root {
-    let app: App = null;
+export function createRoot(container: Element | DocumentFragment, _options?: RootOptions): Root {
+    let app: App|null = null;
     return {
         render(children: React.ReactNode) {
             const App = () => children
@@ -21,7 +21,7 @@ export function createRoot(container: Element | DocumentFragment, options?: Root
             app.mount(container)
         },
         unmount() {
-            return app.unmount();
+            return app?.unmount();
         }
     }
 }

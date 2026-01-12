@@ -13,7 +13,10 @@
   "files": [
     "index.ts",
     "jsx-runtime.ts",
-    "react-router.ts"
+    "react-router.ts",
+    "util.ts",
+    "client.ts",
+    "react-dom.ts"
   ],
   "dependencies": {
     "vue": "*",
