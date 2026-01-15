@@ -197,15 +197,21 @@ export function createClassComponent<P, S = {}>(ComponentClass: typeof Component
 
 
 export function clone(Comp:Function,fn:Function) {
-    Object.assign(Comp, fn);
+    //Object.assign(Comp, fn);
     // 2. 拷贝【自身不可枚举属性】：比如 Object.defineProperty 定义的属性、displayName等
     Object.getOwnPropertyNames(fn).forEach(key => {
+        if(key in Comp){
+            return
+        }
         const desc = Object.getOwnPropertyDescriptor(fn, key);
         if (desc) Object.defineProperty(Comp, key, desc);
     });
     // 3. 拷贝【原型链属性】：原型方法/属性
     if (fn.prototype && typeof fn.prototype === 'object') {
         Object.getOwnPropertyNames(fn.prototype).forEach(key => {
+            if(key in Comp){
+                return
+            }
             if (key !== 'constructor') { // 排除构造函数，避免循环引用
                 const desc = Object.getOwnPropertyDescriptor(fn.prototype, key);
                 if (desc) Object.defineProperty(Comp.prototype, key, desc);

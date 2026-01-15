@@ -11,7 +11,8 @@ import {
     VNode,
     nextTick,
     Ref as VueRef,
-    Slots,
+    ref,
+    Slots, cloneVNode, onUnmounted,
 } from 'vue'
 import type {DefineSetupFnComponent, ObjectEmitsOptions} from 'vue' // 顶部新增这行导入
 import {
@@ -119,21 +120,22 @@ namespace React {
 
 
     export function useState<T>(initialState: T | (() => T)): [T, Dispatch<SetStateAction<T>>] {
-        const {hooks, index, inst} = getHookState()
+        const {hooks, index} = getHookState()
 
         if (!hooks[index]) {
             const initialValue = typeof initialState === 'function'
                 ? (initialState as () => T)()
                 : initialState;
+            const stateRef = ref<T>(initialValue);
             hooks[index] = {
-                stateRef: initialValue, // ✅ 核心：用ref存储状态，响应式自动触发重渲染
+                stateRef: stateRef as VueRef<T>, // ✅ 核心：用ref存储状态，响应式自动触发重渲染
                 updaters: [] as Array<(prev: T) => T>, // ✅ 更新队列：收集所有setState
                 isFlushing: false // ✅ 防抖锁：防止同一批次重复执行队列
             }
         }
 
         const hookNode = hooks[index] as {
-            stateRef: T,
+            stateRef: VueRef<T>,
             updaters: Array<(prev: T) => T>,
             isFlushing: boolean
         }
@@ -151,7 +153,7 @@ namespace React {
             // 加入Vue的更新队列，批量执行，完美异步
             queueMicrotask(() => {
                 try {
-                    const prevValue = hookNode.stateRef!
+                    const prevValue = hookNode.stateRef.value!
                     let nextValue: any = prevValue
                     // 批量执行所有更新器，计算最终最新值
                     hookNode.updaters.forEach(fn => {
@@ -161,8 +163,8 @@ namespace React {
 
                     // ✅ 性能优化：值不变则不修改ref，不触发任何重渲染
                     if (!Object.is(prevValue, nextValue)) {
-                        hookNode.stateRef = nextValue // ✅ 唯一一次修改ref → 触发一次重渲染
-                        inst.update();
+                        hookNode.stateRef.value = nextValue // ✅ 唯一一次修改ref → 触发一次重渲染
+                        //inst.update();
                     }
                 } finally {
                     hookNode.isFlushing = false // 解锁，允许下一批更新
@@ -170,7 +172,7 @@ namespace React {
             })
         }
 
-        return [hookNode.stateRef!, setState] as const
+        return [hookNode.stateRef.value!, setState] as const
     }
 
     export function useRef<T>(initialValue: T): MutableRefObject<T>;
@@ -252,60 +254,61 @@ namespace React {
         return [startTransition, isPending] as const;
     }
 
+    const typeCache = new WeakMap();
+
     export function createElement(type: any, props: any = {}, ...children: any) {
+
         if (!props) {
             props = {}
         }
-        if (props.className) {
-            props.class = props.className
-            delete props.className
-        }
+
         if (children.length === 0 && props.children) {
-            children = props.children
+            const _child=  props.children
+            children = Array.isArray(_child) ? _child : [_child]
         }
-        if (props.children) {
+        if ("children" in props) {
             delete props.children
         }
 
         props.style && (props.style = normalizeStyle(props.style))
 
-        if(typeof type === 'function'&&type.$typeof !== DEFINE_COMPONENT) {
-            type = defineComponent(type);
+        if (typeof type === 'function' && type.$typeof !== DEFINE_COMPONENT) {
+            if (typeCache.get(type)) {
+                type = typeCache.get(type)
+            } else {
+                const com = defineComponent(type);
+                typeCache.set(type, com);
+                type = com;
+            }
         }
-
         let normalized =
-            Array.isArray(children)
+            (Array.isArray(children)
                 ? children
-                : [children]
+                : [children]).flat()
 
-        if(normalized.length === 1){
+        if (normalized.length === 1) {
             normalized = normalized[0]
         }
 
-        if (typeof type === 'string') {
+        if (typeof type === "string") {
             // 原生元素：永远普通 children
             return h(type, props, normalized)
         }
 
         // 组件：永远 slot
-        return h(type, props, {
-            default: () => normalized
-        })
+        return h(type, {...props,children:normalized})
     }
 
     export function cloneElement(node: any, props: any = {}, ...children: any) {
-        if (props?.className) {
-            props.class = props.className
-            delete props.className
-        }
         if (children.length === 0) {
-            children = props?.children || node.children
-            delete props.children
+            const _child = props?.children || node.children
+            children = Array.isArray(_child) ? _child : [_child]
         }
         if (props?.children) {
             delete props.children
         }
-        return createElement(node.type, {...node.props, ...props}, ...children);
+        return cloneVNode(node,{...node.props, ...props},children)
+        //return createElement(node.type, {...node.props, ...props}, ...children);
     }
 
     export function isValidElement(val: any) {
@@ -546,15 +549,18 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
             if (fn.prototype instanceof React.Component) {
                 render = createClassComponent(fn as any)
             }
+            onUnmounted(()=>{
+                const inst = getCurrentInstance()!
+                hookStateMap.delete(inst)
+            })
             return () => {
                 const inst = getCurrentInstance()!
                 inst.__hookIndex__ = 0;
                 inst.idx = 0;
-
                 const len = (inst.vnode.children as Slots)?.default?.length || 0;
                 const _props = {
                     ...attrs,
-                    children: len !== 0 ? slots.default : slots.default?.()
+                    children: attrs.children||(len !== 0 ? slots.default : slots.default?.())
                 }
                 const entries = Object.entries(_props).map(([key, value]) => {
                     if (key.startsWith('on') && typeof value === 'function') {
@@ -563,6 +569,8 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                             emit(eventName, ...rest);
                             return value.call(this, ...rest)
                         }];
+                    } else if (key === 'children' && Array.isArray(value) && value.length == 1) {
+                        return [key, value[0]];
                     }
                     return [key, value];
                 })
@@ -572,7 +580,7 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
         }
     })
     Comp.$typeof = DEFINE_COMPONENT;
-    clone(Comp,fn);
+    clone(Comp, fn);
     return Comp as unknown as DefineComponent<P, ExtractEmits<P>>
 }
 
