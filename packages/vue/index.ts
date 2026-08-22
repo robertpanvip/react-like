@@ -1,6 +1,5 @@
 import {
     h,
-    isVNode,
     defineAsyncComponent,
     Suspense as VueSuspense,
     Fragment as VueFragment,
@@ -12,18 +11,37 @@ import {
     nextTick,
     Ref as VueRef,
     ref,
-    Slots, cloneVNode, onUnmounted,
+    Slots, onUnmounted,
 } from 'vue'
-import type {DefineSetupFnComponent, ObjectEmitsOptions} from 'vue' // 顶部新增这行导入
+import type {DefineSetupFnComponent, ObjectEmitsOptions} from 'vue'
 import {
     clone,
     createClassComponent,
     depsEqual,
-    normalizeChildren,
-    normalizeStyle,
     shallowEqual,
     useExposeRef
 } from "./util";
+
+/* ===================== 导入 ReactElement 层 ===================== */
+import {
+    REACT_ELEMENT_TYPE,
+    REACT_FORWARD_REF_TYPE,
+    REACT_PROVIDER_TYPE,
+    REACT_CONSUMER_TYPE,
+    REACT_FRAGMENT_TYPE,
+    DEFINE_COMPONENT,
+    createElement as createReactElement,
+    createContext as createReactContext,
+    forwardRef as createReactForwardRef,
+    memo as createReactMemo,
+    Children as ReactChildren,
+    cloneElement as cloneReactElement,
+    isValidElement as isValidReactElement,
+    Fragment as ReactFragment,
+    toVNode,
+    __setDefineComponentRef,
+    type ReactElement as RE,
+} from './react-element'
 
 /* ------------------------------------------------------------------ */
 
@@ -52,27 +70,25 @@ function getHookState() {
     return {hooks, index, inst}
 }
 
-const FORWARD = Symbol('forward-ref')
-const PROVIDER = Symbol('provider');
-export const DEFINE_COMPONENT = Symbol('define-component')
 namespace React {
     export const Suspense = VueSuspense
-    export const Fragment = VueFragment
+    export const Fragment = ReactFragment
     export const StrictMode = VueFragment;
+    export const version = "19.0.0";
     export type SetStateAction<S> = S | ((prevState: S) => S);
     export type Dispatch<A> = (value: A) => void;
     export type Reducer<S, A> = (prevState: S, action: A) => S;
 
     export type JSXElementConstructor<P = any> = (props: P) => any
-    export type ReactElement = VNode;
-    export type ReactNode = VNode | string | number | boolean | null | undefined | void
+    export type ReactElement = RE;
+    export type ReactNode = RE | string | number | boolean | null | undefined | void
     export type ReactInstance = Component<any, any> | Element;
 
-    export interface RefObject<T> extends VueRef {
+    export interface RefObject<T> {
         readonly current: T | null
     }
 
-    export interface MutableRefObject<T> extends VueRef {
+    export interface MutableRefObject<T> {
         current: T;
     }
 
@@ -85,7 +101,6 @@ namespace React {
 
     export interface ExoticComponent<P = {}> {
         (props: P): ReactNode;
-
         readonly $$typeof: symbol;
     }
 
@@ -103,7 +118,6 @@ namespace React {
 
     export interface FunctionComponent<P = {}> {
         (props: P, context?: any): ReactNode;
-
         displayName?: string;
         defaultProps?: Partial<P>;
     }
@@ -128,9 +142,9 @@ namespace React {
                 : initialState;
             const stateRef = ref<T>(initialValue);
             hooks[index] = {
-                stateRef: stateRef as VueRef<T>, // ✅ 核心：用ref存储状态，响应式自动触发重渲染
-                updaters: [] as Array<(prev: T) => T>, // ✅ 更新队列：收集所有setState
-                isFlushing: false // ✅ 防抖锁：防止同一批次重复执行队列
+                stateRef: stateRef as VueRef<T>,
+                updaters: [] as Array<(prev: T) => T>,
+                isFlushing: false
             }
         }
 
@@ -140,34 +154,27 @@ namespace React {
             isFlushing: boolean
         }
         const setState = (payload: T | ((prev: T) => T)) => {
-            // 统一封装更新器：兼容 直接传值(setCount(10)) 和 函数式更新(setCount(p=>p+1))
             const updater = (prev: T): T => {
                 return typeof payload === 'function'
                     ? (payload as (prev: T) => T)(prev)
                     : payload
             }
-            // 只入队，不立即修改ref → 同步阶段ref值不变，快照特性达成
             hookNode.updaters.push(updater);
             if (hookNode.isFlushing) return
             hookNode.isFlushing = true
-            // 加入Vue的更新队列，批量执行，完美异步
             queueMicrotask(() => {
                 try {
                     const prevValue = hookNode.stateRef.value!
                     let nextValue: any = prevValue
-                    // 批量执行所有更新器，计算最终最新值
                     hookNode.updaters.forEach(fn => {
                         nextValue = fn(nextValue)
                     })
-                    hookNode.updaters = [] // 清空队列，准备下一批更新
-
-                    // ✅ 性能优化：值不变则不修改ref，不触发任何重渲染
+                    hookNode.updaters = []
                     if (!Object.is(prevValue, nextValue)) {
-                        hookNode.stateRef.value = nextValue // ✅ 唯一一次修改ref → 触发一次重渲染
-                        //inst.update();
+                        hookNode.stateRef.value = nextValue
                     }
                 } finally {
-                    hookNode.isFlushing = false // 解锁，允许下一批更新
+                    hookNode.isFlushing = false
                 }
             })
         }
@@ -223,8 +230,7 @@ namespace React {
         if (!prev || !depsEqual(prev.deps, deps)) {
             prev?.cleanup?.();
             queueMicrotask(() => {
-                const cleanup = fn(); // 执行本次effect回调，拿到清理函数
-                // ✅ 修复BUG2：在微任务内赋值，不提前覆盖prev，存入最新的deps和cleanup
+                const cleanup = fn();
                 hooks[index] = {
                     deps: deps,
                     cleanup: typeof cleanup === 'function' ? cleanup : null
@@ -234,135 +240,36 @@ namespace React {
     }
 
     export const useLayoutEffect = useEffect;
-
     export const useInsertionEffect = useEffect;
 
     export function useTransition() {
-        // 用useState标记过渡状态（是否在等待低优先级更新）
         const [isPending, setIsPending] = useState(false);
-
-        // startTransition：包裹低优先级更新逻辑
         const startTransition = (callback: () => void) => {
-            setIsPending(true); // 标记开始过渡
-            // 用setTimeout延迟执行（模拟低优先级调度）
+            setIsPending(true);
             setTimeout(() => {
-                callback(); // 执行低优先级更新
-                setIsPending(false); // 标记过渡结束
-            }, 0); // 延迟0ms，让浏览器先处理高优先级任务（如输入）
+                callback();
+                setIsPending(false);
+            }, 0);
         };
-
         return [startTransition, isPending] as const;
-    }
-
-    const typeCache = new WeakMap();
-
-    export function createElement(type: any, props: any = {}, ...children: any) {
-
-        if (!props) {
-            props = {}
-        }
-
-        if (children.length === 0 && props.children) {
-            const _child=  props.children
-            children = Array.isArray(_child) ? _child : [_child]
-        }
-        if ("children" in props) {
-            delete props.children
-        }
-
-        props.style && (props.style = normalizeStyle(props.style))
-
-        if (typeof type === 'function' && type.$typeof !== DEFINE_COMPONENT) {
-            if (typeCache.get(type)) {
-                type = typeCache.get(type)
-            } else {
-                const com = defineComponent(type);
-                typeCache.set(type, com);
-                type = com;
-            }
-        }
-        let normalized =
-            (Array.isArray(children)
-                ? children
-                : [children]).flat()
-
-        if (normalized.length === 1) {
-            normalized = normalized[0]
-        }
-
-        if (typeof type === "string") {
-            // 原生元素：永远普通 children
-            return h(type, props, normalized)
-        }
-
-        // 组件：永远 slot
-        return h(type, {...props,children:normalized})
-    }
-
-    export function cloneElement(node: any, props: any = {}, ...children: any) {
-        if (children.length === 0) {
-            const _child = props?.children || node.children
-            children = Array.isArray(_child) ? _child : [_child]
-        }
-        if (props?.children) {
-            delete props.children
-        }
-        return cloneVNode(node,{...node.props, ...props},children)
-        //return createElement(node.type, {...node.props, ...props}, ...children);
-    }
-
-    export function isValidElement(val: any) {
-        return isVNode(val)
-    }
-
-    /* Context                                                             */
-    export function createContext<T>(defaultValue?: T) {
-        const key = Symbol('context')
-        const ConsumerRender = (props: any) => {
-            const value = useContext({_key: key})
-            return props.children(value)
-        }
-        (ConsumerRender as any).$typeof = PROVIDER
-
-        const Consumer = defineComponent(ConsumerRender)
-
-        const Provider = defineComponent<{ value: T }, any>((props: { value: T; children: any }) => {
-            const inst = getCurrentInstance()!
-            inst.appContext.provides[key] = props.value || defaultValue
-            return props.children
-        })
-
-        return {
-            _key: key,
-            _default: defaultValue,
-            Consumer,
-            Provider
-        }
     }
 
     export function useReducer<S, A>(
         reducer: Reducer<S, A>,
-        initialState: S | (() => S), // 允许初始状态是函数
-        initializer?: (state: S) => S // 可选的初始化器（React 完整特性）
+        initialState: S | (() => S),
+        initializer?: (state: S) => S
     ): [S, Dispatch<A>] {
-        // 处理初始状态（支持函数形式）
         const resolvedInitialState = typeof initialState === 'function'
             ? (initialState as () => S)()
             : initialState;
-
-        // 应用 initializer 处理（如状态重置逻辑）
         const finalInitialState = initializer
             ? initializer(resolvedInitialState)
             : resolvedInitialState;
-
-        // 复用 useState 存储状态
         const [state, setState] = useState(finalInitialState);
-
         const dispatch: Dispatch<A> = (action) => {
             const nextState = reducer(state, action);
             setState(nextState);
         };
-
         return [state, dispatch] as const;
     }
 
@@ -381,7 +288,6 @@ namespace React {
     }
 
     export function startTransition(fn: () => void) {
-        // Vue 的更新已经是批量异步的，这里用 nextTick 模拟
         nextTick(fn).catch()
     }
 
@@ -392,25 +298,19 @@ namespace React {
     }
 
     export function isFragment(node: any): boolean {
-        return isVNode(node) && node.type === VueFragment
+        return typeof node === 'object' && node !== null && node.$$typeof === REACT_ELEMENT_TYPE && node.type === REACT_FRAGMENT_TYPE
     }
 
-
-    export function forwardRef<T, P = {}>(render: (props: P, ref: { current: T | null }) => any) {
-        (render as any).$typeof = FORWARD
-        return render
-    }
-
-    export const memo = <T>(component: T) => component // Vue 自带响应式，无需额外 memo
-
-
-    export function lazy<T>(loader: () => Promise<{ default: T }>) {
-        return defineAsyncComponent(loader)
-    }
-
-    export function createRef() {
-        return useRef();
-    }
+    /* ===================== 基于 ReactElement 的 API ===================== */
+    export const createElement = createReactElement
+    export const createContext = createReactContext
+    export const forwardRef = createReactForwardRef
+    export const memo = createReactMemo
+    export const Children = ReactChildren
+    export const cloneElement = cloneReactElement
+    export const isValidElement = isValidReactElement
+    export const lazy = <T>(loader: () => Promise<{ default: T }>) => defineAsyncComponent(loader)
+    export const createRef = () => useRef()
 
     export class Component<P, S> {
         defaultProps?: P;
@@ -428,16 +328,11 @@ namespace React {
         setState<K extends keyof S>(
             _state: ((prevState: Readonly<S>, props: Readonly<P>) => Pick<S, K> | S | null) | (Pick<S, K> | S | null),
             _callback?: () => void,
-        ): void {
-
-        };
+        ): void {};
 
         componentDidMount?(): void;
-
         shouldComponentUpdate?(nextProps: P, nextState: S, nextContext: any): boolean;
-
         componentDidUpdate?(prevProps: P, prevState: S): void;
-
         componentWillUnmount?(): void;
 
         forceUpdate(_callback?: () => void) {
@@ -454,31 +349,9 @@ namespace React {
             return !shallowEqual(this.props, nextProps as Readonly<P>) || !shallowEqual(this.state, nextState as Readonly<S>);
         }
     }
-
-    export const Children = {
-        map(children: any[], fn: (child: any, index: number) => any) {
-            if (!children) return []
-            return normalizeChildren([children]).map(fn)
-        },
-        forEach(children: any[], fn: (child: any, index: number) => void) {
-            normalizeChildren([children]).forEach(fn)
-        },
-        count(children: any[]) {
-            return normalizeChildren(children).length
-        },
-        only(children: any[]) {
-            const normalized = normalizeChildren(children)
-            if (normalized.length !== 1) throw new Error('Children.only expects exactly one child')
-            return normalized[0]
-        },
-        toArray(children: any[]) {
-            return normalizeChildren(children)
-        },
-    }
-
-    export const version = "18.2.0";
 }
 
+/* ===================== 导出 API ===================== */
 export const useState = React.useState;
 export const useEffect = React.useEffect;
 export const useMemo = React.useMemo;
@@ -521,7 +394,7 @@ export type RefAttributes<T> = React.RefAttributes<T>;
 export type ReactPortal = React.ReactPortal;
 export type ReactInstance = React.ReactInstance;
 
-export type DefineComponent<Props extends Record<string, any>, E extends ObjectEmitsOptions = {}, > =
+export type DefineComponent<Props extends Record<string, any>, E extends ObjectEmitsOptions = {}> =
     DefineSetupFnComponent<Props, E, any>
     & {
     $typeof: symbol
@@ -538,30 +411,36 @@ type ExtractEmits<T> = {
     [K in PickOnKeys<T> as RemoveOnPrefix<K>]: T[K] extends ((...args: any[]) => any) ? T[K] : () => void
 };
 
-/* slot↔prop 映射契约：把 React 组件的 render-prop 桥接成 Vue 的 scoped slot。   */
-/* 约定：默认 `#slotName` 对到 `props.<slotName>`；toSlot 用于重排 React 回调参数 */
+/* slot↔prop 映射契约（暂未启用，预留接口） */
 export interface SlotMap {
-    prop?: string;                       // React 组件读取的 render-prop 名，缺省=slotName
-    toSlot?: (...reactArgs: any[]) => any // React 实参 → slot scope 的重排函数
+    prop?: string;
+    toSlot?: (...reactArgs: any[]) => any
 }
-
 export type SlotMaps = Record<string, SlotMap>
 
-/* defineComponent（关键：重置 hookIndex）                             */
+/* ===================== defineComponent（核心桥接） ===================== */
 export function defineComponent<P extends Record<string, any>, T extends (props: P, ref?: unknown) => any>(
     fn: T,
     slotMaps?: SlotMaps
 ): DefineComponent<P, ExtractEmits<P>> {
+    // 处理 forwardRef 对象
+    let render: any = fn;
+    let isForwardRef = false;
+    if (fn && typeof fn === 'object' && (fn as any).$$typeof === REACT_FORWARD_REF_TYPE) {
+        render = (fn as any).render;
+        isForwardRef = true;
+    }
+
     const Comp = defineVueComponent<P>({
         inheritAttrs: false,
         setup(_, {slots, expose, emit}) {
             const attrs = useAttrs();
             const ref = useExposeRef(expose);
-            let render = (fn as any);
-            if (fn.prototype instanceof React.Component) {
-                render = createClassComponent(fn as any)
+            let finalRender = render;
+            if (render.prototype instanceof React.Component) {
+                finalRender = createClassComponent(render)
             }
-            onUnmounted(()=>{
+            onUnmounted(() => {
                 const inst = getCurrentInstance()!
                 hookStateMap.delete(inst)
             })
@@ -569,9 +448,8 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                 const inst = getCurrentInstance()!
                 inst.__hookIndex__ = 0;
                 inst.idx = 0;
-                // children 归一化：固定两条途径，不再用 `.length` 猜"值还是函数"
-                //  - createElement / jsx-runtime 组件分支：children 通过 props 传入 → attrs.children
-                //  - Vue 模板 slot：默认槽内容从 slots.default 取
+
+                // children 归一化：固定从 props 或 slots.default 取
                 const children = attrs.children ?? (slots.default ? slots.default() : undefined);
                 const _props = {
                     ...attrs,
@@ -590,7 +468,12 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                     return [key, value];
                 })
                 const props = Object.fromEntries(entries) as typeof _props;
-                return render.$typeof === FORWARD ? render(props, ref) : render(props)
+
+                // 调用 React 组件函数 → 返回 ReactElement
+                const result = isForwardRef ? finalRender(props, ref) : finalRender(props);
+
+                // 翻译 ReactElement → Vue vnode
+                return toVNode(result, {forwardRef: ref});
             }
         }
     })
@@ -599,9 +482,13 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
     return Comp as unknown as DefineComponent<P, ExtractEmits<P>>
 }
 
+// 注册 defineComponent 引用到 react-element.ts 和 jsx-runtime.ts 解决循环依赖
+__setDefineComponentRef(defineComponent)
+import {__setJsxDefineComponentRef} from './jsx-runtime'
+__setJsxDefineComponentRef(defineComponent)
+
 export * from './client'
 
 export * from './react-dom'
 
 export default React
-

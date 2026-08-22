@@ -355,8 +355,8 @@ describe('✅ React 标准 Hooks 测试', () => {
     // ✅ React预期：虚拟节点的属性正确
     expect(vNode.type).toBe('div')
     expect(vNode.props!.id).toBe('react-div')
-    expect(vNode.props!.class).toBe('react-class') // 你的封装自动转className→class，符合React→DOM的规则
-    expect(JSON.stringify(vNode.children)).toBe(JSON.stringify(['react text']))
+    expect(vNode.props!.className).toBe('react-class') // ReactElement 保留 className，toVNode 时转为 class
+    expect(vNode.props!.children).toBe('react text')
 
     // ✅ React预期：Children.map遍历子节点
     const children = [1, createElement('span'), 'react']

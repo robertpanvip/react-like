@@ -1,5 +1,6 @@
 import type React from './index'
 import {createApp, App} from 'vue'
+import {toVNode} from './react-element'
 
 export interface RootOptions {
     identifierPrefix?: string;
@@ -8,7 +9,6 @@ export interface RootOptions {
 
 export interface Root {
     render(children: React.ReactNode): void;
-
     unmount(): void;
 }
 
@@ -16,7 +16,7 @@ export function createRoot(container: Element | DocumentFragment, _options?: Roo
     let app: App|null = null;
     return {
         render(children: React.ReactNode) {
-            const App = () => children
+            const App = () => toVNode(children)
             app = createApp(App, {})
             app.mount(container)
         },

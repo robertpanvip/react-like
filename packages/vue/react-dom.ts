@@ -4,9 +4,10 @@ import type {
     ReactPortal
 } from './index';
 import {createRoot, type Root} from './client'
-import {Teleport, createVNode, getCurrentInstance} from 'vue'
+import {toVNode, REACT_PORTAL_TYPE, REACT_ELEMENT_TYPE, type ReactElement} from './react-element'
+import {createVNode, Teleport, getCurrentInstance} from 'vue'
 
-export const version = "18.0.2";
+export const version = "19.0.0";
 
 export function findDOMNode(target: ReactInstance | null | undefined): Element | null | Text {
     let instance = (target as any)?._instance;
@@ -37,7 +38,15 @@ export function unmountComponentAtNode(_container: Container): boolean {
 }
 
 export function createPortal(children: ReactNode, container: Container, key?: null | string): ReactPortal {
-    return createVNode(Teleport, {to: container, key: key || ""}, children)
+    // 返回一个标记为 Portal 的 ReactElement，toVNode 会翻译为 Teleport vnode
+    return {
+        $$typeof: REACT_PORTAL_TYPE,
+        type: REACT_PORTAL_TYPE,
+        key: key ?? null,
+        ref: null,
+        props: {children, containerInfo: container},
+        _owner: null,
+    } as any
 }
 
 export function flushSync<R>(fn: () => R): R {
