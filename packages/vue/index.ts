@@ -70,6 +70,28 @@ function getHookState() {
     return {hooks, index, inst}
 }
 
+/* 更新调度器：批量合并 inst.update() 调用 */
+let _pendingUpdate: (() => void) | null = null
+let _updateScheduled = false
+function scheduleUpdate(inst: ComponentInternalInstance) {
+    _pendingUpdate = () => { inst.update() }
+    if (!_updateScheduled) {
+        _updateScheduled = true
+        queueMicrotask(() => {
+            const upd = _pendingUpdate
+            _pendingUpdate = null
+            _updateScheduled = false
+            if (upd) upd()
+        })
+    }
+}
+
+/** 重置调度器内部状态（用于测试隔离） */
+export function resetReactScheduler() {
+    _pendingUpdate = null
+    _updateScheduled = false
+}
+
 namespace React {
     export const Suspense = VueSuspense
     export const Fragment = ReactFragment
@@ -134,22 +156,21 @@ namespace React {
 
 
     export function useState<T>(initialState: T | (() => T)): [T, Dispatch<SetStateAction<T>>] {
-        const {hooks, index} = getHookState()
+        const {hooks, index, inst} = getHookState()
 
         if (!hooks[index]) {
             const initialValue = typeof initialState === 'function'
                 ? (initialState as () => T)()
                 : initialState;
-            const stateRef = ref<T>(initialValue);
             hooks[index] = {
-                stateRef: stateRef as VueRef<T>,
+                state: initialValue,
                 updaters: [] as Array<(prev: T) => T>,
                 isFlushing: false
             }
         }
 
         const hookNode = hooks[index] as {
-            stateRef: VueRef<T>,
+            state: T,
             updaters: Array<(prev: T) => T>,
             isFlushing: boolean
         }
@@ -162,24 +183,26 @@ namespace React {
             hookNode.updaters.push(updater);
             if (hookNode.isFlushing) return
             hookNode.isFlushing = true
-            queueMicrotask(() => {
-                try {
-                    const prevValue = hookNode.stateRef.value!
-                    let nextValue: any = prevValue
-                    hookNode.updaters.forEach(fn => {
-                        nextValue = fn(nextValue)
-                    })
-                    hookNode.updaters = []
-                    if (!Object.is(prevValue, nextValue)) {
-                        hookNode.stateRef.value = nextValue
-                    }
-                } finally {
-                    hookNode.isFlushing = false
+            try {
+                const prevValue = hookNode.state
+                let nextValue: any = prevValue
+                hookNode.updaters.forEach(fn => {
+                    nextValue = fn(nextValue)
+                })
+                hookNode.updaters = []
+                if (!Object.is(prevValue, nextValue)) {
+                    hookNode.state = nextValue
+                    // 始终触发重新渲染，包括初始渲染期间
+                    // React 中 setState 在渲染期间会被批处理，渲染结束后统一应用
+                    // 我们的实现通过 queueMicrotask 延迟到渲染完成后执行，确保组件已挂载
+                    scheduleUpdate(inst)
                 }
-            })
+            } finally {
+                hookNode.isFlushing = false
+            }
         }
 
-        return [hookNode.stateRef.value!, setState] as const
+        return [hookNode.state, setState] as const
     }
 
     export function useRef<T>(initialValue: T): MutableRefObject<T>;
@@ -228,14 +251,24 @@ namespace React {
         const prev = hooks[index]
 
         if (!prev || !depsEqual(prev.deps, deps)) {
-            prev?.cleanup?.();
+            // 先执行前一个 effect 的清理函数（如果存在）
+            // prev.cleanup 在微任务中设置，但如果组件重新渲染时微任务已执行，cleanup 已可用
+            if (prev && prev.cleanup) {
+                prev.cleanup();
+            }
+            // 同步存储新的 deps，确保下一次渲染时 deps 比较正确
+            // cleanup 引用在微任务中更新，但 cleanup 函数本身是之前同步存储的
+            const newHook = {
+                deps: deps,
+                cleanup: null as (() => void) | null
+            };
+            hooks[index] = newHook;
+            // 使用微任务调度 effect 函数执行，确保在 DOM 提交后执行
+            // 与 React 的 useEffect 语义一致：在渲染提交到屏幕后异步执行
             queueMicrotask(() => {
                 const cleanup = fn();
-                hooks[index] = {
-                    deps: deps,
-                    cleanup: typeof cleanup === 'function' ? cleanup : null
-                };
-            })
+                newHook.cleanup = typeof cleanup === 'function' ? cleanup : null;
+            });
         }
     }
 
@@ -295,6 +328,12 @@ namespace React {
         const inst = getCurrentInstance()!
         inst.idx = (inst.idx ? inst.idx : 0) + 1
         return `uid-${inst.idx}`
+    }
+
+    export function useDebugValue<T>(value: T, formatter?: (value: T) => any) {
+        // No-op in non-dev environment. In React, this adds a label to custom hooks
+        // in React DevTools. Since we're in a Vue environment, there's no React DevTools
+        // to display this information. The function is provided for API compatibility.
     }
 
     export function isFragment(node: any): boolean {
@@ -365,6 +404,7 @@ export const useReducer = React.useReducer;
 export const useTransition = React.useTransition;
 export const useLayoutEffect = React.useLayoutEffect;
 export const useId = React.useId;
+export const useDebugValue = React.useDebugValue;
 
 export const createElement = React.createElement;
 export const memo = React.memo;
@@ -449,18 +489,23 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                 inst.__hookIndex__ = 0;
                 inst.idx = 0;
 
-                // children 归一化：固定从 props 或 slots.default 取
-                const children = attrs.children ?? (slots.default ? slots.default() : undefined);
+                // children 归一化：优先从 __reactChildren（原始 React 子节点）取，
+                // 其次是 slots.default（Vue 插槽，用于 antd 的 render props 等场景）。
+                // 使用 __reactChildren 避免 slots.default() 返回 Vue VNode 导致 antd 无法渲染。
+                const children = attrs.__reactChildren ?? (slots.default ? slots.default() : undefined);
+                // 剥离 __reactChildren 防止其泄露到下游组件，避免被当作 DOM 属性渲染
+                const { __reactChildren: _rc, ...cleanAttrs } = attrs as any;
                 const _props = {
-                    ...attrs,
+                    ...cleanAttrs,
                     children
                 }
                 const entries = Object.entries(_props).map(([key, value]) => {
                     if (key.startsWith('on') && typeof value === 'function') {
                         return [key, function (this: typeof _props, ...rest: unknown[]) {
-                            const eventName = key.slice(2).replace(/^[A-Z]/, (s) => s.toLowerCase());
-                            emit(eventName, ...rest);
-                            return value.call(this, ...rest)
+                            // Note: we do NOT call emit() here because Vue 3 treats onXxx props
+                            // as event listeners, causing emit('click',...) to trigger the same
+                            // handler via Vue's event system, resulting in double invocation.
+                            return value.apply(this, rest)
                         }];
                     } else if (key === 'children' && Array.isArray(value) && value.length == 1) {
                         return [key, value[0]];

@@ -69,7 +69,7 @@ function ReactElement(type: any, key: any, ref: any, _self: any, _source: any, _
     if (normalized.length === 1) normalized = normalized[0];
 
     // 未包装的纯函数组件 → 用 defineComponent 包装
-    if (typeof type === 'function' && !type.$typeof) {
+    if (typeof type === 'function' && type.$typeof !== DEFINE_COMPONENT) {
         let cached = typeCache.get(type);
         if (!cached) {
             cached = getDefineComponent()(type);

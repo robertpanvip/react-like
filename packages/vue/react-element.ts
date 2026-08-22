@@ -49,7 +49,7 @@ export function createElement(type: any, props: any | null, ...children: any[]):
 
   // 把未包装的纯函数组件 wrap 为 defineComponent（Vue 组件），
   // 但保留 forwardRef / memo 等 $$typeof 对象不包装，留给 toVNode 处理
-  if (typeof type === 'function' && !type.$typeof) {
+  if (typeof type === 'function' && type.$typeof !== DEFINE_COMPONENT) {
     // 延迟导入避免循环依赖
     const {defineComponent: wrap} = await_import_defineComponent()
     let cached = typeCache.get(type)
@@ -202,7 +202,9 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
     const mapped = node.map(n => toVNodeImpl(n, options))
     return mapped.length === 1 ? mapped[0] : mapped
   }
-  // 4. 非 ReactElement
+  // 4. 已经是 Vue VNode → 直接透传
+  if (node.__v_isVNode) return node
+  // 5. 非 ReactElement
   if (typeof node !== 'object' || node.$$typeof !== REACT_ELEMENT_TYPE) return null
 
   const {type, key, props, ref: elementRef} = node
@@ -228,7 +230,10 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
   if (typeof type === 'object' && type !== null) {
     switch (type.$$typeof) {
       case REACT_FORWARD_REF_TYPE: {
-        const inner = type.render(props, options?.forwardRef ?? null)
+        // 优先使用 ReactElement 自带的 ref（如 <Comp ref={handlesRef}>），
+        // 否则使用父组件通过 forwardRef 传递的 ref
+        const ref = elementRef ?? options?.forwardRef ?? null
+        const inner = type.render(props, ref)
         return toVNodeImpl(inner, options)
       }
       case REACT_MEMO_TYPE: {
@@ -249,8 +254,13 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
         return null
       }
       default:
-        // 未知 $$typeof 类型 → 尝试作为组件渲染
-        return h(type, buildVNodeProps(props, vnodeKey, elementRef))
+        // 未知 $$typeof 类型（或 Vue 组件对象）→ 尝试作为组件渲染，保留 children
+        const _vp = buildVNodeProps(props, vnodeKey, elementRef)
+        const _kids = normalizeReactChildren(props.children)
+        if (_kids.length > 0) {
+          _vp.__reactChildren = _kids.length === 1 ? _kids[0] : _kids
+        }
+        return h(type, _vp)
     }
   }
 
@@ -259,8 +269,12 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
     const vp = buildVNodeProps(props, vnodeKey, elementRef)
     const kids = normalizeReactChildren(props.children)
     if (kids.length === 0) return h(type, vp)
-    const vnodes = kids.map((c: any) => toVNodeImpl(c, options))
-    return h(type, vp, vnodes.length === 1 ? vnodes[0] : vnodes)
+    // 使用 __reactChildren 而非 children 传递原始 React 子节点。
+    // 原因：h(type, vp) 中 vp.children 会被 Vue 视为 vnode 子节点（slots），
+    // 导致 defineComponent 中 slots.default() 返回 Vue VNode 而非原始字符串/ReactElement。
+    // 使用 __reactChildren 作为常规 prop 传递，defineComponent 通过 attrs 读取。
+    vp.__reactChildren = kids.length === 1 ? kids[0] : kids
+    return h(type, vp)
   }
 
   return null
@@ -280,7 +294,7 @@ function buildVNodeProps(props: any, key: any, ref: any): Record<string, any> {
   if (!props) return result
 
   for (const k in props) {
-    if (k === 'key' || k === 'ref' || k === 'children') continue
+    if (k === 'key' || k === 'ref' || k === 'children' || k === '__reactChildren') continue
     if (k === 'className') {
       result.class = props[k]
     } else {

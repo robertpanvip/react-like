@@ -12,12 +12,14 @@ import VueReact, {
   isValidElement,
   Children,
   useContext,
-  createContext
+  createContext,
+  resetReactScheduler
 } from "@react-like/vue";
 
 // 全局重置钩子索引，防止测试用例之间的污染
 beforeEach(() => {
   vi.clearAllMocks()
+  resetReactScheduler()
 })
 
 afterEach(() => {
@@ -44,27 +46,34 @@ describe('✅ React 标准 Hooks 测试', () => {
   it('useState - 多个独立state相互隔离，同渲染setState不立即更新', () => {
 
     const TestComponent = defineComponent(() => {
+      // 使用ref标记首次渲染，避免后续重渲染时断言失败
+      const isFirstRender = useRef(true)
       // 三个完全独立的state，React中绝对不会相互影响
       const [count, setCount] = useState(0)
       const [name, setName] = useState('react')
       const [flag, setFlag] = useState(false)
-      // ✅ React预期：初始值正确
-      expect(count).toBe(0)
-      expect(name).toBe('react')
-      expect(flag).toBe(false)
 
-      // ✅ React预期：同一次渲染中，执行setState不会立即更新当前变量（快照特性）
-      setCount(10)
-      setName('react-hooks')
-      setFlag(true)
-      expect(count).toBe(0)
-      expect(name).toBe('react')
-      expect(flag).toBe(false)
+      if (isFirstRender.current) {
+        // ✅ React预期：初始值正确
+        expect(count).toBe(0)
+        expect(name).toBe('react')
+        expect(flag).toBe(false)
 
-      // ✅ React预期：函数式更新，能拿到最新的前置值
-      setCount(prev => prev + 1)
-      setCount(prev => prev * 2)
-      expect(count).toBe(0) // 依然是快照，不会立即变
+        // ✅ React预期：同一次渲染中，执行setState不会立即更新当前变量（快照特性）
+        setCount(10)
+        setName('react-hooks')
+        setFlag(true)
+        expect(count).toBe(0)
+        expect(name).toBe('react')
+        expect(flag).toBe(false)
+
+        // ✅ React预期：函数式更新，能拿到最新的前置值
+        setCount(prev => prev + 1)
+        setCount(prev => prev * 2)
+        expect(count).toBe(0) // 依然是快照，不会立即变
+
+        isFirstRender.current = false
+      }
 
       return createElement('div')
     })
@@ -74,15 +83,20 @@ describe('✅ React 标准 Hooks 测试', () => {
   it('useState - 初始值只在首次渲染生效，后续更新不触发初始化', () => {
     const mockInitFn = vi.fn(() => 0) // 模拟复杂初始值函数
     const TestComponent = defineComponent(() => {
+      const isFirstRender = useRef(true)
       const [count, setCount] = useState(mockInitFn)
 
-      // ✅ React预期：初始值函数只执行1次
-      expect(mockInitFn).toHaveBeenCalledTimes(1)
-      expect(count).toBe(0)
+      if (isFirstRender.current) {
+        // ✅ React预期：初始值函数只执行1次
+        expect(mockInitFn).toHaveBeenCalledTimes(1)
+        expect(count).toBe(0)
 
-      // 执行更新，不会重新执行初始值函数
-      setCount(10)
-      expect(mockInitFn).toHaveBeenCalledTimes(1)
+        // 执行更新，不会重新执行初始值函数
+        setCount(10)
+        expect(mockInitFn).toHaveBeenCalledTimes(1)
+
+        isFirstRender.current = false
+      }
 
       return createElement('div')
     })
@@ -144,6 +158,7 @@ describe('✅ React 标准 Hooks 测试', () => {
     mount(TestComponent)
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
     // ✅ React预期：effect执行2次(0→1)，清理函数执行1次(清理0)
     expect(mockEffect).toHaveBeenCalledTimes(2)
     expect(mockEffect).toHaveBeenNthCalledWith(1, 0)
@@ -196,6 +211,7 @@ describe('✅ React 标准 Hooks 测试', () => {
     let renderCount = 0;
 
     const TestComponent = defineComponent(() => {
+      const isFirstRender = useRef(true)
       const [a, setA] = useState(1)
       const [b, setB] = useState(2)
       const [c, setC] = useState(10)
@@ -206,17 +222,21 @@ describe('✅ React 标准 Hooks 测试', () => {
       renderCount++ // 每次渲染自增
       currentSum = sum // 每次渲染把最新sum存入全局变量
 
-      // ===== 组件内部的同步断言（全部能通过）=====
-      // 断言1：首次渲染，sum=3，计算函数调用1次
-      expect(sum).toBe(3)
-      expect(mockCompute).toHaveBeenCalledTimes(1)
-      // 断言2：修改【非依赖项c】，不会触发useMemo重新计算
-      setC(20);
-      expect(sum).toBe(3)
-      expect(mockCompute).toHaveBeenCalledTimes(1)
-      // 断言3：修改【依赖项a】，只是触发异步更新，本次渲染sum依然是3
-      setA(5)
-      expect(sum).toBe(3)
+      if (isFirstRender.current) {
+        // ===== 组件内部的同步断言（全部能通过）=====
+        // 断言1：首次渲染，sum=3，计算函数调用1次
+        expect(sum).toBe(3)
+        expect(mockCompute).toHaveBeenCalledTimes(1)
+        // 断言2：修改【非依赖项c】，不会触发useMemo重新计算
+        setC(20);
+        expect(sum).toBe(3)
+        expect(mockCompute).toHaveBeenCalledTimes(1)
+        // 断言3：修改【依赖项a】，只是触发异步更新，本次渲染sum依然是3
+        setA(5)
+        expect(sum).toBe(3)
+
+        isFirstRender.current = false
+      }
 
       return createElement('div')
     })
@@ -300,6 +320,7 @@ describe('✅ React 标准 Hooks 测试', () => {
   it('组合使用 - useState+useEffect+useRef+useMemo 符合React业务预期', async () => {
     const mockApi = vi.fn(() => Promise.resolve([1,2,3]))
     const TestComponent = defineComponent(() => {
+      const isFirstRender = useRef(true)
       const [list, setList] = useState<number[]>([])
       const [loading, setLoading] = useState(true)
       const listRef = useRef<number[]>([])
@@ -321,9 +342,12 @@ describe('✅ React 标准 Hooks 测试', () => {
         }
       }, [])
 
-      expect(loading).toBe(true)
-      expect(listLen).toBe(0)
-      expect(listRef.current).toEqual([])
+      if (isFirstRender.current) {
+        expect(loading).toBe(true)
+        expect(listLen).toBe(0)
+        expect(listRef.current).toEqual([])
+        isFirstRender.current = false
+      }
 
       return createElement('div', null, loading ? 'loading' : listLen)
     })
