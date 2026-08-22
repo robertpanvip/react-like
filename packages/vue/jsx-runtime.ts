@@ -64,9 +64,9 @@ const ReactElement = function (type, key, ref, self, source, owner, config) {
     if (typeof type === "string") {
         return h(type, props, normalized);
     }
-    return h(type, props, {
-        default: () => normalized
-    });
+    // 组件分支：与 index.ts 的 createElement 保持一致 —— children 放进 props.children，
+    // 由 defineComponent 的 setup 统一归一化（slots.default / attrs.children 二选一）
+    return h(type, {...props, children: normalized});
 };
 
 function jsxDEV(type, config: Record<string, unknown>, maybeKey?: string, source?: string, self?: string) {

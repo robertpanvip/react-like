@@ -538,8 +538,20 @@ type ExtractEmits<T> = {
     [K in PickOnKeys<T> as RemoveOnPrefix<K>]: T[K] extends ((...args: any[]) => any) ? T[K] : () => void
 };
 
+/* slot↔prop 映射契约：把 React 组件的 render-prop 桥接成 Vue 的 scoped slot。   */
+/* 约定：默认 `#slotName` 对到 `props.<slotName>`；toSlot 用于重排 React 回调参数 */
+export interface SlotMap {
+    prop?: string;                       // React 组件读取的 render-prop 名，缺省=slotName
+    toSlot?: (...reactArgs: any[]) => any // React 实参 → slot scope 的重排函数
+}
+
+export type SlotMaps = Record<string, SlotMap>
+
 /* defineComponent（关键：重置 hookIndex）                             */
-export function defineComponent<P extends Record<string, any>, T extends (props: P, ref?: unknown) => any>(fn: T): DefineComponent<P, ExtractEmits<P>> {
+export function defineComponent<P extends Record<string, any>, T extends (props: P, ref?: unknown) => any>(
+    fn: T,
+    slotMaps?: SlotMaps
+): DefineComponent<P, ExtractEmits<P>> {
     const Comp = defineVueComponent<P>({
         inheritAttrs: false,
         setup(_, {slots, expose, emit}) {
@@ -557,10 +569,13 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                 const inst = getCurrentInstance()!
                 inst.__hookIndex__ = 0;
                 inst.idx = 0;
-                const len = (inst.vnode.children as Slots)?.default?.length || 0;
+                // children 归一化：固定两条途径，不再用 `.length` 猜"值还是函数"
+                //  - createElement / jsx-runtime 组件分支：children 通过 props 传入 → attrs.children
+                //  - Vue 模板 slot：默认槽内容从 slots.default 取
+                const children = attrs.children ?? (slots.default ? slots.default() : undefined);
                 const _props = {
                     ...attrs,
-                    children: attrs.children||(len !== 0 ? slots.default : slots.default?.())
+                    children
                 }
                 const entries = Object.entries(_props).map(([key, value]) => {
                     if (key.startsWith('on') && typeof value === 'function') {
