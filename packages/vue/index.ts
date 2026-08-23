@@ -2,7 +2,6 @@ import {
     h,
     defineAsyncComponent,
     Suspense as VueSuspense,
-    Fragment as VueFragment,
     defineComponent as defineVueComponent,
     useAttrs,
     getCurrentInstance as getVueCurrentInstance,
@@ -39,6 +38,7 @@ import {
     cloneElement as cloneReactElement,
     isValidElement as isValidReactElement,
     Fragment as ReactFragment,
+    StrictModeFn,
     toVNode,
     __setDefineComponentRef,
     type ReactElement as RE,
@@ -96,7 +96,7 @@ export function resetReactScheduler() {
 namespace React {
     export const Suspense = VueSuspense
     export const Fragment = ReactFragment
-    export const StrictMode = VueFragment;
+    export const StrictMode = StrictModeFn;
     export const version = "19.0.0";
     export type SetStateAction<S> = S | ((prevState: S) => S);
     export type Dispatch<A> = (value: A) => void;
@@ -361,7 +361,7 @@ namespace React {
     export const cloneElement = cloneReactElement
     export const isValidElement = isValidReactElement
     export const lazy = <T>(loader: () => Promise<{ default: T }>) => defineAsyncComponent(loader)
-    export const createRef = () => useRef()
+    export const createRef = () => ({ current: null })
 
     export class Component<P, S> {
         defaultProps?: P;
@@ -494,6 +494,14 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
             }
             onUnmounted(() => {
                 const inst = getCurrentInstance()!
+                const hooks = hookStateMap.get(inst)
+                if (hooks) {
+                    hooks.forEach(hook => {
+                        if (hook && typeof hook.cleanup === 'function') {
+                            try { hook.cleanup() } catch (e) {}
+                        }
+                    })
+                }
                 hookStateMap.delete(inst)
             })
             return () => {

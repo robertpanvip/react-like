@@ -41,6 +41,14 @@ const typeCache = new WeakMap<Function, any>()
 export function createElement(type: any, props: any | null, ...children: any[]): ReactElement {
   if (!props) props = {}
 
+  // Handle Fragment and StrictMode function types
+  if (type === Fragment) {
+    type = REACT_FRAGMENT_TYPE
+  }
+  if (type === StrictModeFn) {
+    type = REACT_FRAGMENT_TYPE
+  }
+
   const {key, ref, ...rest} = props
   let child: any = rest.children
   if (children.length > 0) {
@@ -90,7 +98,8 @@ export function __setDefineComponentRef(ref: any) {
 }
 
 /* ===================== 内建组件类型 ===================== */
-export const Fragment = REACT_FRAGMENT_TYPE
+export function Fragment() {}
+export function StrictModeFn() {}
 
 export function forwardRef(render: Function) {
   return {$$typeof: REACT_FORWARD_REF_TYPE, render}
