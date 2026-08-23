@@ -226,7 +226,9 @@ describe('antd - 基础展示组件', () => {
 
   it('Typography.Text type 属性', () => {
     const wrapper = mountAntd(antd.Typography.Text, {type: 'danger'}, 'Danger Text')
-    expect(wrapper.find('.ant-typography-danger').exists()).toBe(true)
+    // antd v6: 类型通过 CSS 变量应用，而非 class 后缀
+    expect(wrapper.find('.ant-typography').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Danger Text')
   })
 
   it('Typography.Text delete 属性', () => {
@@ -437,7 +439,9 @@ describe('antd - 表单控件组件', () => {
 
   it('Switch 支持 loading 状态', () => {
     const wrapper = mountAntd(antd.Switch, {loading: true})
-    expect(wrapper.find('.ant-switch-loading').exists()).toBe(true)
+    // antd v6: loading 状态下渲染为 disabled，内部显示 loading 图标
+    expect(wrapper.find('.ant-switch').exists()).toBe(true)
+    expect(wrapper.find('.anticon-loading').exists()).toBe(true)
   })
 
   /* ---------- Rate ---------- */

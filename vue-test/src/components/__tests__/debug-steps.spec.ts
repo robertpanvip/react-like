@@ -44,6 +44,6 @@ describe('debug Steps', () => {
     console.log(wrapper.html())
     console.log('=== Steps Text ===')
     console.log(wrapper.text())
-    expect(wrapper.find('.ant-steps').exists()).toBe(true)
+    expect(wrapper.find('.ant-steps-filled').exists()).toBe(true)
   })
 })
