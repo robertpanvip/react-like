@@ -3,6 +3,7 @@
  * 单独文件以避免单个测试文件过大导致内存问题
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest'
+import {mount} from '@vue/test-utils'
 import {defineComponent, createElement, resetReactScheduler} from '@react-like/vue'
 import {Menu, Dropdown, Pagination} from 'antd'
 import {mountAntd, cleanup} from '../../test-setup'
