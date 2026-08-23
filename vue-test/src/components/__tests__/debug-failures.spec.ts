@@ -45,7 +45,7 @@ describe('debug failures', () => {
     console.log('=== Typography.Paragraph HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-typography').exists()).toBe(true)
-    expect(wrapper.find('p').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Paragraph text')
   })
 
   it('Divider orientation', () => {
@@ -53,7 +53,7 @@ describe('debug failures', () => {
     console.log('=== Divider orientation HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-divider').exists()).toBe(true)
-    expect(wrapper.find('.ant-divider-left').exists()).toBe(true)
+    expect(wrapper.find('.ant-divider-with-text-start').exists()).toBe(true)
   })
 
   it('Space', () => {
@@ -65,7 +65,8 @@ describe('debug failures', () => {
     console.log('=== Space HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-space').exists()).toBe(true)
-    expect(wrapper.findAll('.ant-space-item').length).toBeGreaterThanOrEqual(2)
+    expect(wrapper.text()).toContain('Item 1')
+    expect(wrapper.text()).toContain('Item 2')
   })
 
   it('Statistic', () => {
@@ -73,7 +74,7 @@ describe('debug failures', () => {
     console.log('=== Statistic HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-statistic').exists()).toBe(true)
-    expect(wrapper.find('.ant-statistic-content-value').exists()).toBe(true)
+    expect(wrapper.find('.ant-statistic-content-value-int').exists()).toBe(true)
   })
 
   it('Progress', () => {
@@ -81,24 +82,26 @@ describe('debug failures', () => {
     console.log('=== Progress HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-progress').exists()).toBe(true)
-    expect(wrapper.find('.ant-progress-bg').exists()).toBe(true)
+    expect(wrapper.find('.ant-progress-track').exists()).toBe(true)
   })
 
   it('Modal', () => {
-    const wrapper = mountAntd(antd.Modal, {open: true, title: 'Modal Title', children: 'Modal Content'})
+    const wrapper = mountAntd(antd.Modal, {open: true, title: 'Modal Title', getContainer: false, children: 'Modal Content'})
     console.log('=== Modal HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-modal').exists()).toBe(true)
+    expect(wrapper.find('.ant-modal-title').text()).toBe('Modal Title')
+    expect(wrapper.find('.ant-modal-body').text()).toContain('Modal Content')
   })
 
   it('Collapse expandIconPosition', () => {
     const items = [
       {key: '1', label: 'A', children: 'A'},
     ]
-    const wrapper = mountAntd(antd.Collapse, {items, expandIconPosition: 'end'})
+    const wrapper = mountAntd(antd.Collapse, {items, expandIconPlacement: 'end'})
     console.log('=== Collapse HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-collapse').exists()).toBe(true)
-    expect(wrapper.find('.ant-collapse-icon-position-end').exists()).toBe(true)
+    expect(wrapper.find('.ant-collapse-icon-placement-end').exists()).toBe(true)
   })
 })

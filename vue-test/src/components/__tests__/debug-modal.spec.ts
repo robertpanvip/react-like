@@ -1,3 +1,6 @@
+/**
+ * 调试 Modal 组件 teleport 问题的专用测试文件
+ */
 import {describe, it, expect, beforeAll} from 'vitest'
 import {mount} from '@vue/test-utils'
 import {defineComponent, createElement} from '@react-like/vue'
@@ -26,9 +29,20 @@ beforeAll(() => {
       disconnect() {}
     }
   }
+  // @ts-ignore
+  if (typeof window.Element.prototype.getBoundingClientRect === 'undefined') {
+    // @ts-ignore
+    window.Element.prototype.getBoundingClientRect = function() {
+      return { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, x: 0, y: 0 }
+    }
+  }
 })
 
-function mountAntd(Component: any, props: Record<string, any> = {}, children: any = null) {
+function mountAntd(
+  Component: any,
+  props: Record<string, any> = {},
+  children: any = null,
+) {
   const VueComp = defineComponent(Component as any)
   const TestComponent = defineComponent(() => {
     if (children !== null) {
@@ -36,21 +50,29 @@ function mountAntd(Component: any, props: Record<string, any> = {}, children: an
     }
     return createElement(VueComp, props)
   })
-  return mount(TestComponent)
+  return mount(TestComponent, {attachTo: document.body})
 }
 
 describe('debug Modal', () => {
-  it('Modal teleport', () => {
+  it('Modal teleport', async () => {
     const wrapper = mountAntd(antd.Modal, {open: true, title: 'Modal Title', children: 'Modal Content'})
+    await new Promise(r => setTimeout(r, 100))
     console.log('=== wrapper.html() ===')
     console.log(wrapper.html())
     console.log('=== document.body.innerHTML ===')
     console.log(document.body.innerHTML)
-    // Check if modal content is in document.body
     const modalRoot = document.querySelector('.ant-modal')
     console.log('=== modal in document.body ===', !!modalRoot)
     if (modalRoot) {
-      console.log('modalRoot.innerHTML:', modalRoot.innerHTML.substring(0, 200))
+      console.log('=== modal outerHTML ===')
+      console.log(modalRoot.outerHTML)
     }
+    // 列出所有 ant-modal 相关元素
+    const allModals = document.querySelectorAll('[class*="ant-modal"]')
+    console.log('=== all [class*=ant-modal] elements ===', allModals.length)
+    allModals.forEach((el, i) => {
+      console.log(`  [${i}]`, el.className, el.outerHTML?.substring(0, 200))
+    })
+    expect(true).toBe(true)
   })
 })
