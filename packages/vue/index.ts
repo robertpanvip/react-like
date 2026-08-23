@@ -6,6 +6,7 @@ import {
     defineComponent as defineVueComponent,
     useAttrs,
     getCurrentInstance as getVueCurrentInstance,
+    inject,
     ComponentInternalInstance,
     VNode,
     nextTick,
@@ -308,7 +309,18 @@ namespace React {
 
     export function useContext<T>(context: any): T {
         const inst = getCurrentInstance()
-        return inst?.appContext.provides[context?._key] ?? context?._default
+        const val = inst?.provides[context?._key]
+        if (val === undefined && context?._defaultValue !== undefined) {
+            // fallback to inject approach for cases where Vue's provide/inject
+            // chain might be broken by our custom component wrappers
+            try {
+                const injected = inject(context._key, context._defaultValue)
+                return injected as T
+            } catch {
+                return context._defaultValue as T
+            }
+        }
+        return (val !== undefined ? val : context?._defaultValue) as T
     }
 
     export function useImperativeHandle<T>(ref: { current: T | null }, factory: () => T, deps: any[] = []) {

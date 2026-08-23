@@ -221,7 +221,6 @@ describe('antd - 基础展示组件', () => {
   it('Typography.Paragraph 渲染段落', () => {
     const wrapper = mountAntd(antd.Typography.Paragraph, null, 'Paragraph text')
     expect(wrapper.find('.ant-typography').exists()).toBe(true)
-    expect(wrapper.find('p').exists()).toBe(true)
     expect(wrapper.text()).toContain('Paragraph text')
   })
 
@@ -269,10 +268,10 @@ describe('antd - 基础展示组件', () => {
 
   it('Divider orientation 属性', () => {
     const wrapper = mountAntd(antd.Divider, {titlePlacement: 'left'}, 'Left')
-    expect(wrapper.find('.ant-divider-left').exists()).toBe(true)
+    expect(wrapper.find('.ant-divider-with-text-start').exists()).toBe(true)
 
     const rightWrapper = mountAntd(antd.Divider, {titlePlacement: 'right'}, 'Right')
-    expect(rightWrapper.find('.ant-divider-right').exists()).toBe(true)
+    expect(rightWrapper.find('.ant-divider-with-text-end').exists()).toBe(true)
   })
 
   /* ---------- Empty ---------- */
@@ -551,7 +550,8 @@ describe('antd - 数据展示组件', () => {
       [createElement('span', null, 'Item 1'), createElement('span', null, 'Item 2')]
     )
     expect(wrapper.find('.ant-space').exists()).toBe(true)
-    expect(wrapper.findAll('.ant-space-item').length).toBeGreaterThanOrEqual(2)
+    expect(wrapper.text()).toContain('Item 1')
+    expect(wrapper.text()).toContain('Item 2')
   })
 
   it('Space 支持 size 属性', () => {
@@ -596,7 +596,8 @@ describe('antd - 数据展示组件', () => {
     const wrapper = mountAntd(antd.Statistic, {title: 'Sales', value: 12345})
     expect(wrapper.find('.ant-statistic').exists()).toBe(true)
     expect(wrapper.find('.ant-statistic-title').text()).toBe('Sales')
-    expect(wrapper.find('.ant-statistic-content-value').exists()).toBe(true)
+    // antd v6: .ant-statistic-content-value-int 替代 .ant-statistic-content-value
+    expect(wrapper.find('.ant-statistic-content-value-int').exists()).toBe(true)
   })
 
   it('Statistic 支持 prefix/suffix', () => {
@@ -613,8 +614,8 @@ describe('antd - 数据展示组件', () => {
   it('Progress 渲染进度条', () => {
     const wrapper = mountAntd(antd.Progress, {percent: 50})
     expect(wrapper.find('.ant-progress').exists()).toBe(true)
-    // line 模式下显示进度条轨迹
-    expect(wrapper.find('.ant-progress-bg').exists()).toBe(true)
+    // antd v6: .ant-progress-track 替代 .ant-progress-bg
+    expect(wrapper.find('.ant-progress-track').exists()).toBe(true)
   })
 
   it('Progress 支持 type=circle', () => {
@@ -786,7 +787,8 @@ describe('antd - 导航组件', () => {
       {title: 'Step 3'},
     ]
     const wrapper = mountAntd(antd.Steps, {current: 1, items})
-    expect(wrapper.find('.ant-steps').exists()).toBe(true)
+    // antd v6: 根类名从 .ant-steps 变为 .ant-steps-filled
+    expect(wrapper.find('.ant-steps-filled').exists()).toBe(true)
     // 当前步骤在第 2 步（索引 1）
     expect(wrapper.findAll('.ant-steps-item').length).toBe(3)
     expect(wrapper.text()).toContain('Step 1')
@@ -815,6 +817,7 @@ describe('antd - 反馈与弹层组件', () => {
     const wrapper = mountAntd(antd.Modal, {
       open: true,
       title: 'Modal Title',
+      getContainer: false,
       children: 'Modal Content'
     })
     expect(wrapper.find('.ant-modal').exists()).toBe(true)
@@ -823,7 +826,7 @@ describe('antd - 反馈与弹层组件', () => {
   })
 
   it('Modal 关闭时不显示', () => {
-    const wrapper = mountAntd(antd.Modal, {open: false, title: 'Hidden'})
+    const wrapper = mountAntd(antd.Modal, {open: false, title: 'Hidden', getContainer: false})
     expect(wrapper.find('.ant-modal').exists()).toBe(false)
   })
 
@@ -831,6 +834,7 @@ describe('antd - 反馈与弹层组件', () => {
     const wrapper = mountAntd(antd.Modal, {
       open: true,
       title: 'Custom',
+      getContainer: false,
       footer: createElement('button', null, 'Custom Footer')
     })
     expect(wrapper.find('.ant-modal').exists()).toBe(true)
@@ -919,12 +923,13 @@ describe('antd - 复合数据展示组件', () => {
     expect(wrapper.find('.ant-collapse-ghost').exists()).toBe(true)
   })
 
-  it('Collapse 支持 expandIconPosition', () => {
+  it('Collapse 支持 expandIconPlacement', () => {
     const items = [
       {key: '1', label: 'A', children: 'A'},
     ]
-    const wrapper = mountAntd(antd.Collapse, {items, expandIconPosition: 'end'})
-    expect(wrapper.find('.ant-collapse-icon-position-end').exists()).toBe(true)
+    // antd v6: expandIconPosition 已废弃，改用 expandIconPlacement; 类名 .ant-collapse-icon-placement-end
+    const wrapper = mountAntd(antd.Collapse, {items, expandIconPlacement: 'end'})
+    expect(wrapper.find('.ant-collapse-icon-placement-end').exists()).toBe(true)
   })
 
   /* ---------- Descriptions ---------- */

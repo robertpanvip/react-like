@@ -8,7 +8,8 @@
  * 符号对齐 react-is@19（React 19 transitional 符号族）。
  * 若要兼容 React 18，需将 REACT_ELEMENT_TYPE 切为 Symbol.for('react.element')。
  */
-import {h, Fragment as VueFragment} from 'vue'
+import {h, provide, inject, createVNode, Fragment as VueFragment, defineComponent as defineVueComponent} from 'vue'
+const Text = Symbol.for('v-txt')
 import {normalizeStyle} from './util'
 
 /* ===================== 符号族（React 19 transitional） ===================== */
@@ -96,8 +97,10 @@ export function forwardRef(render: Function) {
 }
 
 export function createContext<T>(defaultValue?: T) {
+  const _key = Symbol('context')
   const ctx: any = {
     $$typeof: REACT_CONSUMER_TYPE,
+    _key,
     _defaultValue: defaultValue,
     _currentValue: defaultValue,
   }
@@ -195,8 +198,9 @@ export function toVNode(node: any, options?: ToVNodeOptions): any {
 function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
   // 1. 空 / 布尔 → 跳过
   if (node == null || typeof node === 'boolean') return null
-  // 2. 文本
-  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  // 2. 文本 - use createVNode with Text symbol to create a proper text VNode
+  // Using createVNode with Text symbol directly creates a text VNode that Vue won't try to mutate
+  if (typeof node === 'string' || typeof node === 'number') return createVNode(Text, null, String(node))
   // 3. 数组
   if (Array.isArray(node)) {
     const mapped = node.map(n => toVNodeImpl(n, options))
@@ -240,16 +244,34 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
         return toVNodeImpl(createElement(type.type, props), options)
       }
       case REACT_PROVIDER_TYPE: {
-        // Provider 仅透传子树（后续可通过 provide/inject 增强）
-        const kids = normalizeReactChildren(props.children)
-        if (kids.length === 0) return null
-        const vnodes = kids.map((c: any) => toVNodeImpl(c, options))
-        return vnodes.length === 1 ? vnodes[0] : vnodes
+        // Provider 使用 Vue 的 provide 机制传递 context value
+        const ctx = type._context
+        const ProviderWrapper = defineVueComponent({
+          name: 'ContextProvider',
+          setup(_, {slots}) {
+            provide(ctx._key, props.value ?? ctx._defaultValue)
+            return () => {
+              const kids = normalizeReactChildren(props.children)
+              if (kids.length === 0) return null
+              const vnodes = kids.map((c: any) => toVNodeImpl(c, options))
+              return vnodes.length === 1 ? vnodes[0] : vnodes
+            }
+          }
+        })
+        return h(ProviderWrapper)
       }
       case REACT_CONSUMER_TYPE: {
         const childFn = props.children
         if (typeof childFn === 'function') {
-          return toVNodeImpl(childFn(type._currentValue), options)
+          // Create a wrapper component that reads the injected value via Vue's inject
+          const ConsumerWrapper = defineVueComponent({
+            name: 'ContextConsumer',
+            setup() {
+              const injectedValue = inject(type._key, type._defaultValue)
+              return () => toVNodeImpl(childFn(injectedValue), options)
+            }
+          })
+          return h(ConsumerWrapper)
         }
         return null
       }

@@ -1,0 +1,18 @@
+import * as antd from 'antd';
+const sym = (x) => x && x['$$typeof'] ? x['$$typeof'].toString() : 'N/A';
+console.log('Empty:', typeof antd.Empty, sym(antd.Empty));
+console.log('Progress:', typeof antd.Progress, sym(antd.Progress));
+console.log('Modal:', typeof antd.Modal, sym(antd.Modal));
+console.log('Slider:', typeof antd.Slider, sym(antd.Slider));
+console.log('Divider:', typeof antd.Divider, sym(antd.Divider));
+console.log('Typography.Text:', typeof antd.Typography.Text, sym(antd.Typography.Text));
+console.log('Typography.Paragraph:', typeof antd.Typography.Paragraph, sym(antd.Typography.Paragraph));
+console.log('Tabs:', typeof antd.Tabs, sym(antd.Tabs));
+console.log('Collapse:', typeof antd.Collapse, sym(antd.Collapse));
+console.log('Descriptions:', typeof antd.Descriptions, sym(antd.Descriptions));
+console.log('Table:', typeof antd.Table, sym(antd.Table));
+console.log('ConfigProvider:', typeof antd.ConfigProvider, sym(antd.ConfigProvider));
+console.log('Spin:', typeof antd.Spin, sym(antd.Spin));
+console.log('Result:', typeof antd.Result, sym(antd.Result));
+console.log('Alert:', typeof antd.Alert, sym(antd.Alert));
+console.log('Button:', typeof antd.Button, sym(antd.Button));
