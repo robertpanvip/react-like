@@ -2,7 +2,7 @@
  * antd Upload 组件测试
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest'
-import {createElement, resetReactScheduler} from '@react-like/vue'
+import {createElement, resetReactScheduler} from 'react'
 import {Upload} from 'antd'
 import {mountAntd, cleanup} from '../../test-setup'
 

@@ -3,7 +3,7 @@
  * 从 AntdFeedback.spec.ts 分离以避免单个文件内存过大
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest'
-import {createElement, resetReactScheduler} from '@react-like/vue'
+import {createElement, resetReactScheduler} from 'react'
 import {Tree, Calendar, Timeline, Image, QRCode, Segmented, Carousel} from 'antd'
 import {mountAntd, cleanup} from '../../test-setup'
 

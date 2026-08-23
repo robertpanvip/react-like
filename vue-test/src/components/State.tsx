@@ -1,4 +1,4 @@
-import React, {useState, defineComponent} from '@react-like/vue'
+import React, {useState, defineComponent} from 'react'
 import {ref as vueRef, useTemplateRef} from 'vue'
 import useEffect = React.useEffect;
 import useMemo = React.useMemo;

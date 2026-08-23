@@ -1,7 +1,7 @@
 <script setup lang="tsx">
 //import State from './components/State.tsx'
 import {Button,Empty,Tag,Input} from 'antd'
-import {defineComponent} from '@react-like/vue'
+import {defineComponent} from 'react'
 const VueButton = defineComponent(Input)
 console.log(VueButton);
 const jsx=<VueButton>123</VueButton>

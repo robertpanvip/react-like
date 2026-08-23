@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {mount} from '@vue/test-utils'
-import {defineComponent, createElement} from '@react-like/vue'
+import {defineComponent, createElement} from 'react'
 import {Button} from 'antd'
 
 describe('debug', () => {

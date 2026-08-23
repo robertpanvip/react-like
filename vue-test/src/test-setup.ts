@@ -4,7 +4,7 @@
  * - mountAntd 辅助函数
  */
 import {mount} from '@vue/test-utils'
-import {defineComponent, createElement, resetReactScheduler} from '@react-like/vue'
+import {defineComponent, createElement, resetReactScheduler} from 'react'
 
 /* ===================== jsdom 环境 polyfill ===================== */
 // @ts-ignore

@@ -4,7 +4,7 @@
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest'
 import {mount} from '@vue/test-utils'
-import {defineComponent, createElement, resetReactScheduler} from '@react-like/vue'
+import {defineComponent, createElement, resetReactScheduler} from 'react'
 import {Menu, Dropdown, Pagination} from 'antd'
 import {mountAntd, cleanup} from '../../test-setup'
 

@@ -12,7 +12,7 @@
  */
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 import {mount} from '@vue/test-utils'
-import {createElement, Fragment, defineComponent, useState, useEffect, useRef, useMemo, resetReactScheduler} from '@react-like/vue'
+import {createElement, Fragment, defineComponent, useState, useEffect, useRef, useMemo, resetReactScheduler} from 'react'
 import {
   Button, Tag, Badge, Typography, Divider, Empty, Input, Select, Checkbox, Radio,
   Switch, Rate, InputNumber, Slider, Card, Avatar, Space, Flex, Statistic, Progress,

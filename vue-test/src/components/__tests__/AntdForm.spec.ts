@@ -2,7 +2,7 @@
  * antd 表单相关组件测试
  */
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
-import {resetReactScheduler} from '@react-like/vue'
+import {resetReactScheduler} from 'react'
 import {Form, DatePicker, TimePicker} from 'antd'
 import {mountAntd, cleanup} from '../../test-setup'
 

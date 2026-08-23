@@ -2,7 +2,7 @@
  * antd Drawer 组件测试
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest'
-import {resetReactScheduler} from '@react-like/vue'
+import {resetReactScheduler} from 'react'
 import {Drawer} from 'antd'
 import {mountAntd, cleanup} from '../../test-setup'
 
