@@ -1,30 +1,13 @@
-import {describe, it, expect, beforeAll, beforeEach} from 'vitest'
+import {describe, it, expect, beforeEach} from 'vitest'
 import {mount} from '@vue/test-utils'
 import {defineComponent, createElement, Fragment, resetReactScheduler} from '@react-like/vue'
-import * as antd from 'antd'
-
-beforeAll(() => {
-  // @ts-ignore
-  window.matchMedia = window.matchMedia || function(q: string) {
-    return { matches: false, media: q, onchange: null, addListener: () => {}, removeListener: () => {}, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }
-  }
-  // @ts-ignore
-  if (typeof window.ResizeObserver === 'undefined') {
-    // @ts-ignore
-    window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
-  }
-  // @ts-ignore
-  if (typeof window.Element.prototype.getBoundingClientRect === 'undefined') {
-    // @ts-ignore
-    window.Element.prototype.getBoundingClientRect = function() { return { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, x: 0, y: 0 } }
-  }
-})
+import {Typography} from 'antd'
 
 beforeEach(() => { resetReactScheduler() })
 
 describe('debug text', () => {
   it('Typography.Text renders', () => {
-    const VText = defineComponent(antd.Typography.Text)
+    const VText = defineComponent(Typography.Text)
     const TestComp = defineComponent(() => {
       return createElement(VText, null, 'Hello Typography')
     })

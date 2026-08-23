@@ -1,32 +1,7 @@
-import {describe, it, expect, beforeAll} from 'vitest'
+import {describe, it, expect} from 'vitest'
 import {mount} from '@vue/test-utils'
 import {defineComponent, createElement} from '@react-like/vue'
-import * as antd from 'antd'
-
-beforeAll(() => {
-  // @ts-ignore
-  window.matchMedia = window.matchMedia || function matchMediaMock(query: string) {
-    return {
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    }
-  }
-  // @ts-ignore
-  if (typeof window.ResizeObserver === 'undefined') {
-    // @ts-ignore
-    window.ResizeObserver = class ResizeObserverMock {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-  }
-})
+import {Steps} from 'antd'
 
 describe('debug Steps', () => {
   it('Steps renders', () => {
@@ -35,7 +10,7 @@ describe('debug Steps', () => {
       {title: 'Step 2', content: 'Description 2'},
       {title: 'Step 3'},
     ]
-    const VueComp = defineComponent(antd.Steps as any)
+    const VueComp = defineComponent(Steps as any)
     const TestComponent = defineComponent(() => {
       return createElement(VueComp, {current: 1, items})
     })

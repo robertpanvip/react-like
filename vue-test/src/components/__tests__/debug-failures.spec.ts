@@ -1,47 +1,11 @@
-import {describe, it, expect, beforeAll} from 'vitest'
-import {mount} from '@vue/test-utils'
-import {defineComponent, createElement} from '@react-like/vue'
-import * as antd from 'antd'
-
-beforeAll(() => {
-  // @ts-ignore
-  window.matchMedia = window.matchMedia || function matchMediaMock(query: string) {
-    return {
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    }
-  }
-  // @ts-ignore
-  if (typeof window.ResizeObserver === 'undefined') {
-    // @ts-ignore
-    window.ResizeObserver = class ResizeObserverMock {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-  }
-})
-
-function mountAntd(Component: any, props: Record<string, any> = {}, children: any = null) {
-  const VueComp = defineComponent(Component as any)
-  const TestComponent = defineComponent(() => {
-    if (children !== null) {
-      return createElement(VueComp, props, children)
-    }
-    return createElement(VueComp, props)
-  })
-  return mount(TestComponent)
-}
+import {describe, it, expect} from 'vitest'
+import {createElement} from '@react-like/vue'
+import {Typography, Divider, Space, Statistic, Progress, Modal, Collapse} from 'antd'
+import {mountAntd} from '../../test-setup'
 
 describe('debug failures', () => {
   it('Typography.Paragraph', () => {
-    const wrapper = mountAntd(antd.Typography.Paragraph, null, 'Paragraph text')
+    const wrapper = mountAntd(Typography.Paragraph, null, 'Paragraph text')
     console.log('=== Typography.Paragraph HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-typography').exists()).toBe(true)
@@ -49,7 +13,7 @@ describe('debug failures', () => {
   })
 
   it('Divider orientation', () => {
-    const wrapper = mountAntd(antd.Divider, {titlePlacement: 'left'}, 'Left')
+    const wrapper = mountAntd(Divider, {titlePlacement: 'left'}, 'Left')
     console.log('=== Divider orientation HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-divider').exists()).toBe(true)
@@ -58,7 +22,7 @@ describe('debug failures', () => {
 
   it('Space', () => {
     const wrapper = mountAntd(
-      antd.Space,
+      Space,
       null,
       [createElement('span', null, 'Item 1'), createElement('span', null, 'Item 2')]
     )
@@ -70,7 +34,7 @@ describe('debug failures', () => {
   })
 
   it('Statistic', () => {
-    const wrapper = mountAntd(antd.Statistic, {title: 'Sales', value: 12345})
+    const wrapper = mountAntd(Statistic, {title: 'Sales', value: 12345})
     console.log('=== Statistic HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-statistic').exists()).toBe(true)
@@ -78,7 +42,7 @@ describe('debug failures', () => {
   })
 
   it('Progress', () => {
-    const wrapper = mountAntd(antd.Progress, {percent: 50})
+    const wrapper = mountAntd(Progress, {percent: 50})
     console.log('=== Progress HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-progress').exists()).toBe(true)
@@ -86,7 +50,7 @@ describe('debug failures', () => {
   })
 
   it('Modal', () => {
-    const wrapper = mountAntd(antd.Modal, {open: true, title: 'Modal Title', getContainer: false, children: 'Modal Content'})
+    const wrapper = mountAntd(Modal, {open: true, title: 'Modal Title', getContainer: false, children: 'Modal Content'})
     console.log('=== Modal HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-modal').exists()).toBe(true)
@@ -98,7 +62,7 @@ describe('debug failures', () => {
     const items = [
       {key: '1', label: 'A', children: 'A'},
     ]
-    const wrapper = mountAntd(antd.Collapse, {items, expandIconPlacement: 'end'})
+    const wrapper = mountAntd(Collapse, {items, expandIconPlacement: 'end'})
     console.log('=== Collapse HTML ===')
     console.log(wrapper.html())
     expect(wrapper.find('.ant-collapse').exists()).toBe(true)

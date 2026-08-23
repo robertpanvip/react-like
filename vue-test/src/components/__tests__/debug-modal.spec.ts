@@ -1,48 +1,12 @@
 /**
  * 调试 Modal 组件 teleport 问题的专用测试文件
  */
-import {describe, it, expect, beforeAll} from 'vitest'
+import {describe, it, expect} from 'vitest'
 import {mount} from '@vue/test-utils'
 import {defineComponent, createElement} from '@react-like/vue'
-import * as antd from 'antd'
+import {Modal} from 'antd'
 
-beforeAll(() => {
-  // @ts-ignore
-  window.matchMedia = window.matchMedia || function matchMediaMock(query: string) {
-    return {
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    }
-  }
-  // @ts-ignore
-  if (typeof window.ResizeObserver === 'undefined') {
-    // @ts-ignore
-    window.ResizeObserver = class ResizeObserverMock {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-  }
-  // @ts-ignore
-  if (typeof window.Element.prototype.getBoundingClientRect === 'undefined') {
-    // @ts-ignore
-    window.Element.prototype.getBoundingClientRect = function() {
-      return { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, x: 0, y: 0 }
-    }
-  }
-})
-
-function mountAntd(
-  Component: any,
-  props: Record<string, any> = {},
-  children: any = null,
-) {
+function mountAntd(Component: any, props: Record<string, any> = {}, children: any = null) {
   const VueComp = defineComponent(Component as any)
   const TestComponent = defineComponent(() => {
     if (children !== null) {
@@ -55,7 +19,7 @@ function mountAntd(
 
 describe('debug Modal', () => {
   it('Modal teleport', async () => {
-    const wrapper = mountAntd(antd.Modal, {open: true, title: 'Modal Title', children: 'Modal Content'})
+    const wrapper = mountAntd(Modal, {open: true, title: 'Modal Title', children: 'Modal Content'})
     await new Promise(r => setTimeout(r, 100))
     console.log('=== wrapper.html() ===')
     console.log(wrapper.html())
@@ -67,7 +31,6 @@ describe('debug Modal', () => {
       console.log('=== modal outerHTML ===')
       console.log(modalRoot.outerHTML)
     }
-    // 列出所有 ant-modal 相关元素
     const allModals = document.querySelectorAll('[class*="ant-modal"]')
     console.log('=== all [class*=ant-modal] elements ===', allModals.length)
     allModals.forEach((el, i) => {

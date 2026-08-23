@@ -10,84 +10,19 @@
  *   - 断言 DOM 输出、属性传递、事件回调、子组件渲染
  *   - 对比 React 原生行为（通过注释标注 React 预期）
  */
-import {describe, it, expect, vi, beforeAll, beforeEach, afterEach} from 'vitest'
-import {mount} from '@vue/test-utils'
-import {defineComponent, createElement, Fragment, useState, useEffect, useRef, useMemo, resetReactScheduler} from '@react-like/vue'
-import * as antd from 'antd'
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
+import {createElement, Fragment, useState, useEffect, useRef, useMemo, resetReactScheduler} from '@react-like/vue'
+import {
+  Button, Tag, Badge, Typography, Divider, Empty, Input, Select, Checkbox, Radio,
+  Switch, Rate, InputNumber, Slider, Card, Avatar, Space, Flex, Statistic, Progress,
+  Spin, Alert, Skeleton, Result, Breadcrumb, Steps, Modal, Tabs, Collapse, Descriptions,
+  List, Table, ConfigProvider
+} from 'antd'
+import {mountAntd, cleanup} from '../../test-setup'
 
-/* ===================== jsdom 环境 polyfill ===================== */
-
-// antd 的 responsiveObserver 依赖 window.matchMedia
-beforeAll(() => {
-  // @ts-ignore
-  window.matchMedia = window.matchMedia || function matchMediaMock(query: string) {
-    return {
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    }
-  }
-
-  // @ts-ignore
-  window.getComputedStyle = window.getComputedStyle || function getComputedStyleMock() {
-    return {
-      getPropertyValue: () => '',
-    }
-  }
-
-  // @ts-ignore
-  if (typeof window.ResizeObserver === 'undefined') {
-    // @ts-ignore
-    window.ResizeObserver = class ResizeObserverMock {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-  }
-
-  // @ts-ignore
-  if (typeof window.Element.prototype.getBoundingClientRect === 'undefined') {
-    // @ts-ignore
-    window.Element.prototype.getBoundingClientRect = function() {
-      return { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, x: 0, y: 0 }
-    }
-  }
-})
-
-/* ===================== 辅助函数 ===================== */
-
-/**
- * 将 antd 组件包装为 Vue 可挂载的测试组件。
- * 通过 createElement 模拟 JSX 用法，确保经过 ReactElement → toVNode 链路。
- */
-function mountAntd(
-  Component: any,
-  props: Record<string, any> = {},
-  children: any = null,
-) {
-  const VueComp = defineComponent(Component as any)
-  const TestComponent = defineComponent(() => {
-    if (children !== null) {
-      return createElement(VueComp, props, children)
-    }
-    return createElement(VueComp, props)
-  })
-  return mount(TestComponent)
-}
-
-/* ===================== 测试隔离 ===================== */
-const _origBeforeEach = globalThis.beforeEach
-if (typeof resetReactScheduler === 'function') {
-  // @ts-ignore
-  beforeEach(() => {
-    resetReactScheduler()
-  })
-}
+let currentWrapper: any = null
+beforeEach(() => { resetReactScheduler(); currentWrapper = null })
+afterEach(() => { cleanup(); currentWrapper = null })
 
 /* ===================================================================
    1. 基础展示组件
@@ -97,7 +32,7 @@ describe('antd - 基础展示组件', () => {
 
   /* ---------- Button ---------- */
   it('Button 渲染文字子节点，支持 type/size 属性', () => {
-    const wrapper = mountAntd(antd.Button, {type: 'primary'}, 'Primary Button')
+    const wrapper = mountAntd(Button, {type: 'primary'}, 'Primary Button')
     // React 预期：<button class="ant-btn ant-btn-primary">Primary Button</button>
     const btn = wrapper.find('button')
     expect(btn.exists()).toBe(true)
@@ -108,14 +43,14 @@ describe('antd - 基础展示组件', () => {
 
   it('Button 支持 onClick 事件回调', () => {
     const onClick = vi.fn()
-    const wrapper = mountAntd(antd.Button, {onClick}, 'Click Me')
+    const wrapper = mountAntd(Button, {onClick}, 'Click Me')
     wrapper.find('button').trigger('click')
     expect(onClick).toHaveBeenCalledTimes(1)
   })
 
   it('Button disabled 状态下不可点击', () => {
     const onClick = vi.fn()
-    const wrapper = mountAntd(antd.Button, {disabled: true, onClick}, 'Disabled')
+    const wrapper = mountAntd(Button, {disabled: true, onClick}, 'Disabled')
     const btn = wrapper.find('button')
     expect(btn.attributes('disabled')).toBeDefined()
     btn.trigger('click')
@@ -123,15 +58,15 @@ describe('antd - 基础展示组件', () => {
   })
 
   it('Button 支持不同 size (large/small)', () => {
-    const largeWrapper = mountAntd(antd.Button, {size: 'large'}, 'Large')
+    const largeWrapper = mountAntd(Button, {size: 'large'}, 'Large')
     expect(largeWrapper.find('button').classes()).toContain('ant-btn-lg')
 
-    const smallWrapper = mountAntd(antd.Button, {size: 'small'}, 'Small')
+    const smallWrapper = mountAntd(Button, {size: 'small'}, 'Small')
     expect(smallWrapper.find('button').classes()).toContain('ant-btn-sm')
   })
 
   it('Button loading 状态显示加载图标', () => {
-    const wrapper = mountAntd(antd.Button, {loading: true}, 'Loading')
+    const wrapper = mountAntd(Button, {loading: true}, 'Loading')
     // React 预期：loading 时 button 内会出现 .ant-btn-loading-icon
     const btn = wrapper.find('button')
     expect(btn.classes()).toContain('ant-btn-loading')
@@ -139,29 +74,29 @@ describe('antd - 基础展示组件', () => {
   })
 
   it('Button danger 类型', () => {
-    const wrapper = mountAntd(antd.Button, {danger: true}, 'Danger')
+    const wrapper = mountAntd(Button, {danger: true}, 'Danger')
     expect(wrapper.find('button').classes()).toContain('ant-btn-dangerous')
   })
 
   it('Button ghost 类型', () => {
-    const wrapper = mountAntd(antd.Button, {ghost: true}, 'Ghost')
+    const wrapper = mountAntd(Button, {ghost: true}, 'Ghost')
     expect(wrapper.find('button').classes()).toContain('ant-btn-background-ghost')
   })
 
   it('Button 支持 block 属性', () => {
-    const wrapper = mountAntd(antd.Button, {block: true}, 'Block')
+    const wrapper = mountAntd(Button, {block: true}, 'Block')
     expect(wrapper.find('button').classes()).toContain('ant-btn-block')
   })
 
   it('Button 支持 href 属性（渲染为 a 标签）', () => {
-    const wrapper = mountAntd(antd.Button, {href: 'https://example.com'}, 'Link')
+    const wrapper = mountAntd(Button, {href: 'https://example.com'}, 'Link')
     expect(wrapper.find('a').exists()).toBe(true)
     expect(wrapper.text()).toBe('Link')
   })
 
   /* ---------- Tag ---------- */
   it('Tag 渲染文本内容', () => {
-    const wrapper = mountAntd(antd.Tag, {color: 'blue'}, 'Blue Tag')
+    const wrapper = mountAntd(Tag, {color: 'blue'}, 'Blue Tag')
     // React 预期：<span class="ant-tag ant-tag-blue">Blue Tag</span>
     const tag = wrapper.find('.ant-tag')
     expect(tag.exists()).toBe(true)
@@ -169,48 +104,48 @@ describe('antd - 基础展示组件', () => {
   })
 
   it('Tag 支持 closable', () => {
-    const wrapper = mountAntd(antd.Tag, {closable: true}, 'Closable')
+    const wrapper = mountAntd(Tag, {closable: true}, 'Closable')
     expect(wrapper.find('.ant-tag').exists()).toBe(true)
     expect(wrapper.find('.ant-tag-close-icon').exists()).toBe(true)
   })
 
   it('Tag 不同颜色渲染', () => {
-    const wrapper = mountAntd(antd.Tag, {color: 'red'}, 'Red')
+    const wrapper = mountAntd(Tag, {color: 'red'}, 'Red')
     expect(wrapper.find('.ant-tag').classes()).toContain('ant-tag-red')
   })
 
   /* ---------- Badge ---------- */
   it('Badge 显示计数徽标', () => {
-    const wrapper = mountAntd(antd.Badge, {count: 5}, createElement('span', null, 'Inbox'))
+    const wrapper = mountAntd(Badge, {count: 5}, createElement('span', null, 'Inbox'))
     // React 预期：渲染包含 .ant-badge 的容器，内部有 .ant-badge-count
     expect(wrapper.find('.ant-badge').exists()).toBe(true)
     expect(wrapper.find('.ant-badge-count').exists()).toBe(true)
   })
 
   it('Badge dot 模式', () => {
-    const wrapper = mountAntd(antd.Badge, {dot: true}, createElement('span', null, 'Dot'))
+    const wrapper = mountAntd(Badge, {dot: true}, createElement('span', null, 'Dot'))
     expect(wrapper.find('.ant-badge-dot').exists()).toBe(true)
   })
 
   it('Badge 独立使用（无子元素）', () => {
-    const wrapper = mountAntd(antd.Badge, {count: 8})
+    const wrapper = mountAntd(Badge, {count: 8})
     expect(wrapper.find('.ant-badge-count').exists()).toBe(true)
   })
 
   it('Badge 支持 status 模式', () => {
-    const wrapper = mountAntd(antd.Badge, {status: 'success'})
+    const wrapper = mountAntd(Badge, {status: 'success'})
     expect(wrapper.find('.ant-badge-status-dot').exists()).toBe(true)
   })
 
   /* ---------- Typography ---------- */
   it('Typography.Text 渲染文本', () => {
-    const wrapper = mountAntd(antd.Typography.Text, null, 'Hello Typography')
+    const wrapper = mountAntd(Typography.Text, null, 'Hello Typography')
     expect(wrapper.find('.ant-typography').exists()).toBe(true)
     expect(wrapper.text()).toContain('Hello Typography')
   })
 
   it('Typography.Title 渲染标题', () => {
-    const wrapper = mountAntd(antd.Typography.Title, {level: 1}, 'Title 1')
+    const wrapper = mountAntd(Typography.Title, {level: 1}, 'Title 1')
     const el = wrapper.find('.ant-typography')
     expect(el.exists()).toBe(true)
     expect(el.text()).toBe('Title 1')
@@ -219,78 +154,78 @@ describe('antd - 基础展示组件', () => {
   })
 
   it('Typography.Paragraph 渲染段落', () => {
-    const wrapper = mountAntd(antd.Typography.Paragraph, null, 'Paragraph text')
+    const wrapper = mountAntd(Typography.Paragraph, null, 'Paragraph text')
     expect(wrapper.find('.ant-typography').exists()).toBe(true)
     expect(wrapper.text()).toContain('Paragraph text')
   })
 
   it('Typography.Text type 属性', () => {
-    const wrapper = mountAntd(antd.Typography.Text, {type: 'danger'}, 'Danger Text')
+    const wrapper = mountAntd(Typography.Text, {type: 'danger'}, 'Danger Text')
     // antd v6: 类型通过 CSS 变量应用，而非 class 后缀
     expect(wrapper.find('.ant-typography').exists()).toBe(true)
     expect(wrapper.text()).toContain('Danger Text')
   })
 
   it('Typography.Text delete 属性', () => {
-    const wrapper = mountAntd(antd.Typography.Text, {delete: true}, 'Deleted')
+    const wrapper = mountAntd(Typography.Text, {delete: true}, 'Deleted')
     expect(wrapper.find('del').exists()).toBe(true)
   })
 
   it('Typography.Text copyable 渲染复制图标', () => {
-    const wrapper = mountAntd(antd.Typography.Text, {copyable: true}, 'Copy Me')
+    const wrapper = mountAntd(Typography.Text, {copyable: true}, 'Copy Me')
     // 渲染复制图标
     expect(wrapper.find('.ant-typography-copy').exists()).toBe(true)
   })
 
   it('Typography.Title 不同 level 渲染不同标题标签', () => {
-    const h2 = mountAntd(antd.Typography.Title, {level: 2}, 'H2')
+    const h2 = mountAntd(Typography.Title, {level: 2}, 'H2')
     expect(h2.find('h2').exists()).toBe(true)
 
-    const h3 = mountAntd(antd.Typography.Title, {level: 3}, 'H3')
+    const h3 = mountAntd(Typography.Title, {level: 3}, 'H3')
     expect(h3.find('h3').exists()).toBe(true)
   })
 
   /* ---------- Divider ---------- */
   it('Divider 渲染分割线', () => {
-    const wrapper = mountAntd(antd.Divider, null, 'Text')
+    const wrapper = mountAntd(Divider, null, 'Text')
     expect(wrapper.find('.ant-divider').exists()).toBe(true)
     expect(wrapper.find('.ant-divider-inner-text').exists()).toBe(true)
     expect(wrapper.find('.ant-divider-inner-text').text()).toBe('Text')
   })
 
   it('Divider 无文字', () => {
-    const wrapper = mountAntd(antd.Divider)
+    const wrapper = mountAntd(Divider)
     expect(wrapper.find('.ant-divider').exists()).toBe(true)
   })
 
   it('Divider dashed 属性', () => {
-    const wrapper = mountAntd(antd.Divider, {dashed: true})
+    const wrapper = mountAntd(Divider, {dashed: true})
     expect(wrapper.find('.ant-divider-dashed').exists()).toBe(true)
   })
 
   it('Divider orientation 属性', () => {
-    const wrapper = mountAntd(antd.Divider, {titlePlacement: 'left'}, 'Left')
+    const wrapper = mountAntd(Divider, {titlePlacement: 'left'}, 'Left')
     expect(wrapper.find('.ant-divider-with-text-start').exists()).toBe(true)
 
-    const rightWrapper = mountAntd(antd.Divider, {titlePlacement: 'right'}, 'Right')
+    const rightWrapper = mountAntd(Divider, {titlePlacement: 'right'}, 'Right')
     expect(rightWrapper.find('.ant-divider-with-text-end').exists()).toBe(true)
   })
 
   /* ---------- Empty ---------- */
   it('Empty 渲染空状态', () => {
-    const wrapper = mountAntd(antd.Empty)
+    const wrapper = mountAntd(Empty)
     expect(wrapper.find('.ant-empty').exists()).toBe(true)
     expect(wrapper.find('.ant-empty-image').exists()).toBe(true)
   })
 
   it('Empty 支持自定义 description', () => {
-    const wrapper = mountAntd(antd.Empty, {description: 'No Data'})
+    const wrapper = mountAntd(Empty, {description: 'No Data'})
     expect(wrapper.find('.ant-empty-description').exists()).toBe(true)
     expect(wrapper.find('.ant-empty-description').text()).toBe('No Data')
   })
 
   it('Empty 支持子节点作为额外内容', () => {
-    const wrapper = mountAntd(antd.Empty, {description: 'Empty'}, createElement('button', null, 'Create'))
+    const wrapper = mountAntd(Empty, {description: 'Empty'}, createElement('button', null, 'Create'))
     expect(wrapper.find('.ant-empty').exists()).toBe(true)
     expect(wrapper.find('button').exists()).toBe(true)
   })
@@ -304,38 +239,38 @@ describe('antd - 表单控件组件', () => {
 
   /* ---------- Input ---------- */
   it('Input 渲染输入框', () => {
-    const wrapper = mountAntd(antd.Input, {placeholder: 'Enter text'})
+    const wrapper = mountAntd(Input, {placeholder: 'Enter text'})
     const input = wrapper.find('input')
     expect(input.exists()).toBe(true)
     expect(input.attributes('placeholder')).toBe('Enter text')
   })
 
   it('Input disabled 状态', () => {
-    const wrapper = mountAntd(antd.Input, {disabled: true})
+    const wrapper = mountAntd(Input, {disabled: true})
     expect(wrapper.find('input').attributes('disabled')).toBeDefined()
   })
 
   it('Input 支持 prefix', () => {
-    const wrapper = mountAntd(antd.Input, {
+    const wrapper = mountAntd(Input, {
       prefix: createElement('span', {className: 'prefix-icon'}, '$'),
     })
     expect(wrapper.find('.ant-input-affix-wrapper').exists()).toBe(true)
   })
 
   it('Input.Password 渲染密码输入框', () => {
-    const wrapper = mountAntd(antd.Input.Password, {placeholder: 'Password'})
+    const wrapper = mountAntd(Input.Password, {placeholder: 'Password'})
     expect(wrapper.find('input').exists()).toBe(true)
     expect(wrapper.find('input').attributes('type')).toBe('password')
   })
 
   it('Input.TextArea 渲染文本域', () => {
-    const wrapper = mountAntd(antd.Input.TextArea, {rows: 3, placeholder: 'Textarea'})
+    const wrapper = mountAntd(Input.TextArea, {rows: 3, placeholder: 'Textarea'})
     expect(wrapper.find('textarea').exists()).toBe(true)
     expect(wrapper.find('textarea').attributes('placeholder')).toBe('Textarea')
   })
 
   it('Input.Search 渲染搜索框', () => {
-    const wrapper = mountAntd(antd.Input.Search, {placeholder: 'Search'})
+    const wrapper = mountAntd(Input.Search, {placeholder: 'Search'})
     expect(wrapper.find('.ant-input-search').exists()).toBe(true)
     expect(wrapper.find('input').exists()).toBe(true)
   })
@@ -346,7 +281,7 @@ describe('antd - 表单控件组件', () => {
       {value: 'a', label: 'Option A'},
       {value: 'b', label: 'Option B'},
     ]
-    const wrapper = mountAntd(antd.Select, {
+    const wrapper = mountAntd(Select, {
       options,
       placeholder: 'Select option',
       style: {width: 200}
@@ -355,54 +290,54 @@ describe('antd - 表单控件组件', () => {
   })
 
   it('Select disabled 状态', () => {
-    const wrapper = mountAntd(antd.Select, {disabled: true})
+    const wrapper = mountAntd(Select, {disabled: true})
     expect(wrapper.find('.ant-select-disabled').exists()).toBe(true)
   })
 
   /* ---------- Checkbox ---------- */
   it('Checkbox 渲染复选框', () => {
-    const wrapper = mountAntd(antd.Checkbox, null, 'Checkbox Label')
+    const wrapper = mountAntd(Checkbox, null, 'Checkbox Label')
     expect(wrapper.find('.ant-checkbox-wrapper').exists()).toBe(true)
     expect(wrapper.text()).toContain('Checkbox Label')
   })
 
   it('Checkbox checked 状态', () => {
-    const wrapper = mountAntd(antd.Checkbox, {checked: true}, 'Checked')
+    const wrapper = mountAntd(Checkbox, {checked: true}, 'Checked')
     const checkbox = wrapper.find('.ant-checkbox')
     expect(checkbox.classes()).toContain('ant-checkbox-checked')
   })
 
   it('Checkbox disabled 状态', () => {
-    const wrapper = mountAntd(antd.Checkbox, {disabled: true}, 'Disabled')
+    const wrapper = mountAntd(Checkbox, {disabled: true}, 'Disabled')
     expect(wrapper.find('.ant-checkbox-disabled').exists()).toBe(true)
   })
 
   it('Checkbox.Group 渲染多选组', () => {
     const options = ['Apple', 'Pear', 'Orange']
-    const wrapper = mountAntd(antd.Checkbox.Group, {options, defaultValue: ['Apple']})
+    const wrapper = mountAntd(Checkbox.Group, {options, defaultValue: ['Apple']})
     expect(wrapper.find('.ant-checkbox-group').exists()).toBe(true)
   })
 
   /* ---------- Radio ---------- */
   it('Radio 渲染单选框', () => {
-    const wrapper = mountAntd(antd.Radio, null, 'Radio Label')
+    const wrapper = mountAntd(Radio, null, 'Radio Label')
     expect(wrapper.find('.ant-radio-wrapper').exists()).toBe(true)
     expect(wrapper.text()).toContain('Radio Label')
   })
 
   it('Radio checked 状态', () => {
-    const wrapper = mountAntd(antd.Radio, {checked: true}, 'Checked')
+    const wrapper = mountAntd(Radio, {checked: true}, 'Checked')
     const radio = wrapper.find('.ant-radio')
     expect(radio.classes()).toContain('ant-radio-checked')
   })
 
   it('Radio disabled 状态', () => {
-    const wrapper = mountAntd(antd.Radio, {disabled: true}, 'Disabled')
+    const wrapper = mountAntd(Radio, {disabled: true}, 'Disabled')
     expect(wrapper.find('.ant-radio-disabled').exists()).toBe(true)
   })
 
   it('Radio.Group 渲染单选组', () => {
-    const wrapper = mountAntd(antd.Radio.Group, {
+    const wrapper = mountAntd(Radio.Group, {
       options: [
         {value: 'a', label: 'A'},
         {value: 'b', label: 'B'},
@@ -414,22 +349,22 @@ describe('antd - 表单控件组件', () => {
 
   /* ---------- Switch ---------- */
   it('Switch 渲染开关', () => {
-    const wrapper = mountAntd(antd.Switch, null)
+    const wrapper = mountAntd(Switch, null)
     expect(wrapper.find('.ant-switch').exists()).toBe(true)
   })
 
   it('Switch checked 状态', () => {
-    const wrapper = mountAntd(antd.Switch, {checked: true})
+    const wrapper = mountAntd(Switch, {checked: true})
     expect(wrapper.find('.ant-switch-checked').exists()).toBe(true)
   })
 
   it('Switch disabled 状态', () => {
-    const wrapper = mountAntd(antd.Switch, {disabled: true})
+    const wrapper = mountAntd(Switch, {disabled: true})
     expect(wrapper.find('.ant-switch-disabled').exists()).toBe(true)
   })
 
   it('Switch 支持 checkedChildren 属性', () => {
-    const wrapper = mountAntd(antd.Switch, {
+    const wrapper = mountAntd(Switch, {
       checkedChildren: 'ON',
       unCheckedChildren: 'OFF',
       checked: true
@@ -438,7 +373,7 @@ describe('antd - 表单控件组件', () => {
   })
 
   it('Switch 支持 loading 状态', () => {
-    const wrapper = mountAntd(antd.Switch, {loading: true})
+    const wrapper = mountAntd(Switch, {loading: true})
     // antd v6: loading 状态下渲染为 disabled，内部显示 loading 图标
     expect(wrapper.find('.ant-switch').exists()).toBe(true)
     expect(wrapper.find('.anticon-loading').exists()).toBe(true)
@@ -446,46 +381,46 @@ describe('antd - 表单控件组件', () => {
 
   /* ---------- Rate ---------- */
   it('Rate 渲染评分组件', () => {
-    const wrapper = mountAntd(antd.Rate, null)
+    const wrapper = mountAntd(Rate, null)
     expect(wrapper.find('.ant-rate').exists()).toBe(true)
   })
 
   it('Rate 支持 count 属性', () => {
-    const wrapper = mountAntd(antd.Rate, {count: 10})
+    const wrapper = mountAntd(Rate, {count: 10})
     expect(wrapper.findAll('.ant-rate-star').length).toBeGreaterThanOrEqual(10)
   })
 
   it('Rate disabled 状态', () => {
-    const wrapper = mountAntd(antd.Rate, {disabled: true, value: 3})
+    const wrapper = mountAntd(Rate, {disabled: true, value: 3})
     expect(wrapper.find('.ant-rate-disabled').exists()).toBe(true)
   })
 
   /* ---------- InputNumber ---------- */
   it('InputNumber 渲染数字输入框', () => {
-    const wrapper = mountAntd(antd.InputNumber, {min: 0, max: 10, value: 5})
+    const wrapper = mountAntd(InputNumber, {min: 0, max: 10, value: 5})
     expect(wrapper.find('.ant-input-number').exists()).toBe(true)
     expect(wrapper.find('input').exists()).toBe(true)
   })
 
   it('InputNumber disabled 状态', () => {
-    const wrapper = mountAntd(antd.InputNumber, {disabled: true})
+    const wrapper = mountAntd(InputNumber, {disabled: true})
     expect(wrapper.find('.ant-input-number-disabled').exists()).toBe(true)
   })
 
   /* ---------- Slider ---------- */
   it('Slider 渲染滑块', () => {
-    const wrapper = mountAntd(antd.Slider, {defaultValue: 30, style: {width: 300}})
+    const wrapper = mountAntd(Slider, {defaultValue: 30, style: {width: 300}})
     expect(wrapper.find('.ant-slider').exists()).toBe(true)
     expect(wrapper.find('.ant-slider-handle').exists()).toBe(true)
   })
 
   it('Slider 支持 range 模式', () => {
-    const wrapper = mountAntd(antd.Slider, {range: true, defaultValue: [20, 50], style: {width: 300}})
+    const wrapper = mountAntd(Slider, {range: true, defaultValue: [20, 50], style: {width: 300}})
     expect(wrapper.find('.ant-slider').exists()).toBe(true)
   })
 
   it('Slider disabled 状态', () => {
-    const wrapper = mountAntd(antd.Slider, {disabled: true, defaultValue: 30})
+    const wrapper = mountAntd(Slider, {disabled: true, defaultValue: 30})
     expect(wrapper.find('.ant-slider-disabled').exists()).toBe(true)
   })
 })
@@ -498,7 +433,7 @@ describe('antd - 数据展示组件', () => {
 
   /* ---------- Card ---------- */
   it('Card 渲染标题和内容', () => {
-    const wrapper = mountAntd(antd.Card, {title: 'Card Title'}, 'Card content')
+    const wrapper = mountAntd(Card, {title: 'Card Title'}, 'Card content')
     expect(wrapper.find('.ant-card').exists()).toBe(true)
     expect(wrapper.find('.ant-card-head-title').exists()).toBe(true)
     expect(wrapper.find('.ant-card-head-title').text()).toBe('Card Title')
@@ -506,41 +441,41 @@ describe('antd - 数据展示组件', () => {
   })
 
   it('Card 无标题', () => {
-    const wrapper = mountAntd(antd.Card, null, 'Content only')
+    const wrapper = mountAntd(Card, null, 'Content only')
     expect(wrapper.find('.ant-card').exists()).toBe(true)
     expect(wrapper.find('.ant-card-body').text()).toBe('Content only')
   })
 
   it('Card 支持 hoverable 属性', () => {
-    const wrapper = mountAntd(antd.Card, {hoverable: true}, 'Hoverable')
+    const wrapper = mountAntd(Card, {hoverable: true}, 'Hoverable')
     expect(wrapper.find('.ant-card-hoverable').exists()).toBe(true)
   })
 
   it('Card 支持 size=small', () => {
-    const wrapper = mountAntd(antd.Card, {size: 'small'}, 'Small Card')
+    const wrapper = mountAntd(Card, {size: 'small'}, 'Small Card')
     expect(wrapper.find('.ant-card-small').exists()).toBe(true)
   })
 
   /* ---------- Avatar ---------- */
   it('Avatar 渲染头像', () => {
-    const wrapper = mountAntd(antd.Avatar, null, 'U')
+    const wrapper = mountAntd(Avatar, null, 'U')
     expect(wrapper.find('.ant-avatar').exists()).toBe(true)
   })
 
   it('Avatar 支持 size 和 shape 属性', () => {
-    const wrapper = mountAntd(antd.Avatar, {size: 64, shape: 'square'}, 'A')
+    const wrapper = mountAntd(Avatar, {size: 64, shape: 'square'}, 'A')
     const avatar = wrapper.find('.ant-avatar')
     expect(avatar.classes()).toContain('ant-avatar-square')
   })
 
   it('Avatar 支持 src 图片', () => {
-    const wrapper = mountAntd(antd.Avatar, {src: 'https://example.com/avatar.png'})
+    const wrapper = mountAntd(Avatar, {src: 'https://example.com/avatar.png'})
     expect(wrapper.find('.ant-avatar').exists()).toBe(true)
     expect(wrapper.find('img').exists()).toBe(true)
   })
 
   it('Avatar 支持 icon 属性', () => {
-    const wrapper = mountAntd(antd.Avatar, {
+    const wrapper = mountAntd(Avatar, {
       icon: createElement('span', {className: 'test-icon'}, '★')
     })
     expect(wrapper.find('.ant-avatar').exists()).toBe(true)
@@ -549,7 +484,7 @@ describe('antd - 数据展示组件', () => {
   /* ---------- Space ---------- */
   it('Space 渲染间距组件', () => {
     const wrapper = mountAntd(
-      antd.Space,
+      Space,
       null,
       [createElement('span', null, 'Item 1'), createElement('span', null, 'Item 2')]
     )
@@ -560,7 +495,7 @@ describe('antd - 数据展示组件', () => {
 
   it('Space 支持 size 属性', () => {
     const wrapper = mountAntd(
-      antd.Space,
+      Space,
       {size: 'large'},
       [createElement('span', null, 'A'), createElement('span', null, 'B')]
     )
@@ -569,7 +504,7 @@ describe('antd - 数据展示组件', () => {
 
   it('Space 支持 wrap 属性', () => {
     const wrapper = mountAntd(
-      antd.Space,
+      Space,
       {wrap: true},
       [createElement('span', null, 'A'), createElement('span', null, 'B')]
     )
@@ -579,7 +514,7 @@ describe('antd - 数据展示组件', () => {
   /* ---------- Flex ---------- */
   it('Flex 渲染弹性布局', () => {
     const wrapper = mountAntd(
-      antd.Flex,
+      Flex,
       {wrap: 'wrap', gap: 'middle'},
       [createElement('span', null, '1'), createElement('span', null, '2')]
     )
@@ -588,7 +523,7 @@ describe('antd - 数据展示组件', () => {
 
   it('Flex 支持 vertical 方向', () => {
     const wrapper = mountAntd(
-      antd.Flex,
+      Flex,
       {vertical: true},
       [createElement('span', null, 'A'), createElement('span', null, 'B')]
     )
@@ -597,7 +532,7 @@ describe('antd - 数据展示组件', () => {
 
   /* ---------- Statistic ---------- */
   it('Statistic 渲染统计数值', () => {
-    const wrapper = mountAntd(antd.Statistic, {title: 'Sales', value: 12345})
+    const wrapper = mountAntd(Statistic, {title: 'Sales', value: 12345})
     expect(wrapper.find('.ant-statistic').exists()).toBe(true)
     expect(wrapper.find('.ant-statistic-title').text()).toBe('Sales')
     // antd v6: .ant-statistic-content-value-int 替代 .ant-statistic-content-value
@@ -605,7 +540,7 @@ describe('antd - 数据展示组件', () => {
   })
 
   it('Statistic 支持 prefix/suffix', () => {
-    const wrapper = mountAntd(antd.Statistic, {
+    const wrapper = mountAntd(Statistic, {
       title: 'Growth',
       value: 11.28,
       prefix: '↑',
@@ -616,61 +551,61 @@ describe('antd - 数据展示组件', () => {
 
   /* ---------- Progress ---------- */
   it('Progress 渲染进度条', () => {
-    const wrapper = mountAntd(antd.Progress, {percent: 50})
+    const wrapper = mountAntd(Progress, {percent: 50})
     expect(wrapper.find('.ant-progress').exists()).toBe(true)
     // antd v6: .ant-progress-track 替代 .ant-progress-bg
     expect(wrapper.find('.ant-progress-track').exists()).toBe(true)
   })
 
   it('Progress 支持 type=circle', () => {
-    const wrapper = mountAntd(antd.Progress, {type: 'circle', percent: 75})
+    const wrapper = mountAntd(Progress, {type: 'circle', percent: 75})
     expect(wrapper.find('.ant-progress-circle').exists()).toBe(true)
   })
 
   it('Progress 支持 status=exception', () => {
-    const wrapper = mountAntd(antd.Progress, {percent: 100, status: 'exception'})
+    const wrapper = mountAntd(Progress, {percent: 100, status: 'exception'})
     expect(wrapper.find('.ant-progress-status-exception').exists()).toBe(true)
   })
 
   it('Progress 支持 success 段', () => {
-    const wrapper = mountAntd(antd.Progress, {percent: 50, success: {percent: 30}})
+    const wrapper = mountAntd(Progress, {percent: 50, success: {percent: 30}})
     expect(wrapper.find('.ant-progress').exists()).toBe(true)
   })
 
   /* ---------- Spin ---------- */
   it('Spin 渲染加载中', () => {
-    const wrapper = mountAntd(antd.Spin, {spinning: true})
+    const wrapper = mountAntd(Spin, {spinning: true})
     expect(wrapper.find('.ant-spin').exists()).toBe(true)
     expect(wrapper.find('.ant-spin-spinning').exists()).toBe(true)
   })
 
   it('Spin 不 spinning 时隐藏', () => {
-    const wrapper = mountAntd(antd.Spin, {spinning: false}, createElement('div', null, 'Content'))
+    const wrapper = mountAntd(Spin, {spinning: false}, createElement('div', null, 'Content'))
     // 不 spinning 时不显示 .ant-spin-spinning
     expect(wrapper.find('.ant-spin-spinning').exists()).toBe(false)
   })
 
   it('Spin 支持 description 属性', () => {
-    const wrapper = mountAntd(antd.Spin, {spinning: true, description: 'Loading...'})
+    const wrapper = mountAntd(Spin, {spinning: true, description: 'Loading...'})
     expect(wrapper.find('.ant-spin').exists()).toBe(true)
   })
 
   it('Spin 作为容器包裹子元素', () => {
-    const wrapper = mountAntd(antd.Spin, null, createElement('div', {className: 'content'}, 'Content'))
+    const wrapper = mountAntd(Spin, null, createElement('div', {className: 'content'}, 'Content'))
     expect(wrapper.find('.ant-spin-container').exists()).toBe(true)
     expect(wrapper.find('.content').exists()).toBe(true)
   })
 
   /* ---------- Alert ---------- */
   it('Alert 渲染警告提示', () => {
-    const wrapper = mountAntd(antd.Alert, {title: 'Success Message', type: 'success'})
+    const wrapper = mountAntd(Alert, {title: 'Success Message', type: 'success'})
     expect(wrapper.find('.ant-alert').exists()).toBe(true)
     expect(wrapper.find('.ant-alert-success').exists()).toBe(true)
     expect(wrapper.find('.ant-alert-title').text()).toBe('Success Message')
   })
 
   it('Alert 支持 description', () => {
-    const wrapper = mountAntd(antd.Alert, {
+    const wrapper = mountAntd(Alert, {
       title: 'Title',
       description: 'Description text',
       type: 'info'
@@ -680,45 +615,45 @@ describe('antd - 数据展示组件', () => {
   })
 
   it('Alert closable 显示关闭按钮', () => {
-    const wrapper = mountAntd(antd.Alert, {title: 'Closable', closable: true})
+    const wrapper = mountAntd(Alert, {title: 'Closable', closable: true})
     expect(wrapper.find('.ant-alert-close-icon').exists()).toBe(true)
   })
 
   it('Alert 支持 type=warning/error', () => {
-    const warningWrapper = mountAntd(antd.Alert, {title: 'Warning', type: 'warning'})
+    const warningWrapper = mountAntd(Alert, {title: 'Warning', type: 'warning'})
     expect(warningWrapper.find('.ant-alert-warning').exists()).toBe(true)
 
-    const errorWrapper = mountAntd(antd.Alert, {title: 'Error', type: 'error'})
+    const errorWrapper = mountAntd(Alert, {title: 'Error', type: 'error'})
     expect(errorWrapper.find('.ant-alert-error').exists()).toBe(true)
   })
 
   it('Alert banner 模式', () => {
-    const wrapper = mountAntd(antd.Alert, {title: 'Banner', banner: true})
+    const wrapper = mountAntd(Alert, {title: 'Banner', banner: true})
     expect(wrapper.find('.ant-alert-banner').exists()).toBe(true)
   })
 
   /* ---------- Skeleton ---------- */
   it('Skeleton 渲染骨架屏', () => {
-    const wrapper = mountAntd(antd.Skeleton, {active: true})
+    const wrapper = mountAntd(Skeleton, {active: true})
     expect(wrapper.find('.ant-skeleton').exists()).toBe(true)
     expect(wrapper.find('.ant-skeleton-active').exists()).toBe(true)
   })
 
   it('Skeleton 支持 avatar/paragraph/title 配置', () => {
-    const wrapper = mountAntd(antd.Skeleton, {avatar: true, paragraph: {rows: 2}})
+    const wrapper = mountAntd(Skeleton, {avatar: true, paragraph: {rows: 2}})
     expect(wrapper.find('.ant-skeleton-avatar').exists()).toBe(true)
     expect(wrapper.find('.ant-skeleton-paragraph').exists()).toBe(true)
   })
 
   it('Skeleton 结合 loading 属性', () => {
-    const wrapper = mountAntd(antd.Skeleton, {loading: false}, createElement('span', null, 'Content'))
+    const wrapper = mountAntd(Skeleton, {loading: false}, createElement('span', null, 'Content'))
     // loading=false 时直接渲染子节点
     expect(wrapper.text()).toContain('Content')
   })
 
   /* ---------- Result ---------- */
   it('Result 渲染结果页', () => {
-    const wrapper = mountAntd(antd.Result, {
+    const wrapper = mountAntd(Result, {
       status: 'success',
       title: 'Success!',
       subTitle: 'Operation completed successfully'
@@ -730,7 +665,7 @@ describe('antd - 数据展示组件', () => {
   })
 
   it('Result 支持 extra 操作区', () => {
-    const wrapper = mountAntd(antd.Result, {
+    const wrapper = mountAntd(Result, {
       status: '404',
       title: '404',
       extra: createElement('button', null, 'Back Home')
@@ -740,7 +675,7 @@ describe('antd - 数据展示组件', () => {
   })
 
   it('Result 404 状态', () => {
-    const wrapper = mountAntd(antd.Result, {status: '404', title: 'Not Found'})
+    const wrapper = mountAntd(Result, {status: '404', title: 'Not Found'})
     expect(wrapper.find('.ant-result-404').exists()).toBe(true)
   })
 })
@@ -758,7 +693,7 @@ describe('antd - 导航组件', () => {
       {title: 'Category'},
       {title: 'Current'},
     ]
-    const wrapper = mountAntd(antd.Breadcrumb, {items})
+    const wrapper = mountAntd(Breadcrumb, {items})
     expect(wrapper.find('.ant-breadcrumb').exists()).toBe(true)
     expect(wrapper.text()).toContain('Home')
     expect(wrapper.text()).toContain('Category')
@@ -770,7 +705,7 @@ describe('antd - 导航组件', () => {
       {title: 'Home'},
       {title: 'Page'},
     ]
-    const wrapper = mountAntd(antd.Breadcrumb, {items, separator: '>'})
+    const wrapper = mountAntd(Breadcrumb, {items, separator: '>'})
     expect(wrapper.find('.ant-breadcrumb').exists()).toBe(true)
   })
 
@@ -779,7 +714,7 @@ describe('antd - 导航组件', () => {
       {title: 'Home', href: '/'},
       {title: 'Page', href: '/page'},
     ]
-    const wrapper = mountAntd(antd.Breadcrumb, {items})
+    const wrapper = mountAntd(Breadcrumb, {items})
     expect(wrapper.find('.ant-breadcrumb-link').exists()).toBe(true)
   })
 
@@ -790,7 +725,7 @@ describe('antd - 导航组件', () => {
       {title: 'Step 2', content: 'Description 2'},
       {title: 'Step 3'},
     ]
-    const wrapper = mountAntd(antd.Steps, {current: 1, items})
+    const wrapper = mountAntd(Steps, {current: 1, items})
     // antd v6: 根类名从 .ant-steps 变为 .ant-steps-filled
     expect(wrapper.find('.ant-steps-filled').exists()).toBe(true)
     // 当前步骤在第 2 步（索引 1）
@@ -805,7 +740,7 @@ describe('antd - 导航组件', () => {
       {title: 'A'},
       {title: 'B'},
     ]
-    const wrapper = mountAntd(antd.Steps, {items, size: 'small'})
+    const wrapper = mountAntd(Steps, {items, size: 'small'})
     expect(wrapper.find('.ant-steps-small').exists()).toBe(true)
   })
 })
@@ -818,7 +753,7 @@ describe('antd - 反馈与弹层组件', () => {
 
   /* ---------- Modal ---------- */
   it('Modal 渲染弹窗', () => {
-    const wrapper = mountAntd(antd.Modal, {
+    const wrapper = mountAntd(Modal, {
       open: true,
       title: 'Modal Title',
       getContainer: false,
@@ -830,12 +765,12 @@ describe('antd - 反馈与弹层组件', () => {
   })
 
   it('Modal 关闭时不显示', () => {
-    const wrapper = mountAntd(antd.Modal, {open: false, title: 'Hidden', getContainer: false})
+    const wrapper = mountAntd(Modal, {open: false, title: 'Hidden', getContainer: false})
     expect(wrapper.find('.ant-modal').exists()).toBe(false)
   })
 
   it('Modal 支持 footer 自定义', () => {
-    const wrapper = mountAntd(antd.Modal, {
+    const wrapper = mountAntd(Modal, {
       open: true,
       title: 'Custom',
       getContainer: false,
@@ -849,11 +784,11 @@ describe('antd - 反馈与弹层组件', () => {
 
   it('Modal.confirm 静态方法存在', () => {
     // 静态方法直接调用，不通过 defineComponent
-    expect(typeof antd.Modal.confirm).toBe('function')
-    expect(typeof antd.Modal.info).toBe('function')
-    expect(typeof antd.Modal.success).toBe('function')
-    expect(typeof antd.Modal.error).toBe('function')
-    expect(typeof antd.Modal.warning).toBe('function')
+    expect(typeof Modal.confirm).toBe('function')
+    expect(typeof Modal.info).toBe('function')
+    expect(typeof Modal.success).toBe('function')
+    expect(typeof Modal.error).toBe('function')
+    expect(typeof Modal.warning).toBe('function')
   })
 })
 
@@ -869,7 +804,7 @@ describe('antd - 复合数据展示组件', () => {
       {key: '1', label: 'Tab 1', children: 'Content 1'},
       {key: '2', label: 'Tab 2', children: 'Content 2'},
     ]
-    const wrapper = mountAntd(antd.Tabs, {items, activeKey: '1'})
+    const wrapper = mountAntd(Tabs, {items, activeKey: '1'})
     expect(wrapper.find('.ant-tabs').exists()).toBe(true)
     expect(wrapper.text()).toContain('Tab 1')
     expect(wrapper.text()).toContain('Tab 2')
@@ -879,7 +814,7 @@ describe('antd - 复合数据展示组件', () => {
     const items = [
       {key: '1', label: 'Card Tab', children: 'Content'},
     ]
-    const wrapper = mountAntd(antd.Tabs, {items, type: 'card'})
+    const wrapper = mountAntd(Tabs, {items, type: 'card'})
     expect(wrapper.find('.ant-tabs-card').exists()).toBe(true)
   })
 
@@ -887,7 +822,7 @@ describe('antd - 复合数据展示组件', () => {
     const items = [
       {key: '1', label: 'A', children: 'A content'},
     ]
-    const wrapper = mountAntd(antd.Tabs, {items, tabPlacement: 'left'})
+    const wrapper = mountAntd(Tabs, {items, tabPlacement: 'left'})
     expect(wrapper.find('.ant-tabs-left').exists()).toBe(true)
   })
 
@@ -895,7 +830,7 @@ describe('antd - 复合数据展示组件', () => {
     const items = [
       {key: '1', label: 'A', children: 'A'},
     ]
-    const wrapper = mountAntd(antd.Tabs, {items, centered: true})
+    const wrapper = mountAntd(Tabs, {items, centered: true})
     expect(wrapper.find('.ant-tabs-centered').exists()).toBe(true)
   })
 
@@ -905,7 +840,7 @@ describe('antd - 复合数据展示组件', () => {
       {key: '1', label: 'Panel 1', children: 'Content 1'},
       {key: '2', label: 'Panel 2', children: 'Content 2'},
     ]
-    const wrapper = mountAntd(antd.Collapse, {items, defaultActiveKey: ['1']})
+    const wrapper = mountAntd(Collapse, {items, defaultActiveKey: ['1']})
     expect(wrapper.find('.ant-collapse').exists()).toBe(true)
     expect(wrapper.findAll('.ant-collapse-item').length).toBe(2)
   })
@@ -915,7 +850,7 @@ describe('antd - 复合数据展示组件', () => {
       {key: '1', label: 'A', children: 'A content'},
       {key: '2', label: 'B', children: 'B content'},
     ]
-    const wrapper = mountAntd(antd.Collapse, {items, accordion: true})
+    const wrapper = mountAntd(Collapse, {items, accordion: true})
     expect(wrapper.find('.ant-collapse').exists()).toBe(true)
   })
 
@@ -923,7 +858,7 @@ describe('antd - 复合数据展示组件', () => {
     const items = [
       {key: '1', label: 'Ghost', children: 'Content'},
     ]
-    const wrapper = mountAntd(antd.Collapse, {items, ghost: true})
+    const wrapper = mountAntd(Collapse, {items, ghost: true})
     expect(wrapper.find('.ant-collapse-ghost').exists()).toBe(true)
   })
 
@@ -932,7 +867,7 @@ describe('antd - 复合数据展示组件', () => {
       {key: '1', label: 'A', children: 'A'},
     ]
     // antd v6: expandIconPosition 已废弃，改用 expandIconPlacement; 类名 .ant-collapse-icon-placement-end
-    const wrapper = mountAntd(antd.Collapse, {items, expandIconPlacement: 'end'})
+    const wrapper = mountAntd(Collapse, {items, expandIconPlacement: 'end'})
     expect(wrapper.find('.ant-collapse-icon-placement-end').exists()).toBe(true)
   })
 
@@ -942,7 +877,7 @@ describe('antd - 复合数据展示组件', () => {
       {key: '1', label: 'Name', children: 'John'},
       {key: '2', label: 'Age', children: 30},
     ]
-    const wrapper = mountAntd(antd.Descriptions, {items, title: 'User Info'})
+    const wrapper = mountAntd(Descriptions, {items, title: 'User Info'})
     expect(wrapper.find('.ant-descriptions').exists()).toBe(true)
     expect(wrapper.find('.ant-descriptions-title').text()).toBe('User Info')
     expect(wrapper.text()).toContain('Name')
@@ -954,7 +889,7 @@ describe('antd - 复合数据展示组件', () => {
     const items = [
       {key: '1', label: 'A', children: 'A'},
     ]
-    const wrapper = mountAntd(antd.Descriptions, {items, bordered: true})
+    const wrapper = mountAntd(Descriptions, {items, bordered: true})
     expect(wrapper.find('.ant-descriptions-bordered').exists()).toBe(true)
   })
 
@@ -964,14 +899,14 @@ describe('antd - 复合数据展示组件', () => {
       {key: '2', label: 'B', children: 'B'},
       {key: '3', label: 'C', children: 'C'},
     ]
-    const wrapper = mountAntd(antd.Descriptions, {items, column: 2})
+    const wrapper = mountAntd(Descriptions, {items, column: 2})
     expect(wrapper.find('.ant-descriptions').exists()).toBe(true)
   })
 
   /* ---------- List ---------- */
   it('List 渲染列表', () => {
     const dataSource = ['Item 1', 'Item 2', 'Item 3']
-    const wrapper = mountAntd(antd.List, {
+    const wrapper = mountAntd(List, {
       dataSource,
       renderItem: (item: any) => createElement('div', null, item)
     })
@@ -983,7 +918,7 @@ describe('antd - 复合数据展示组件', () => {
 
   it('List 支持 header/footer', () => {
     const dataSource = ['A', 'B']
-    const wrapper = mountAntd(antd.List, {
+    const wrapper = mountAntd(List, {
       dataSource,
       header: 'Header',
       footer: 'Footer',
@@ -994,7 +929,7 @@ describe('antd - 复合数据展示组件', () => {
   })
 
   it('List 支持 size=small', () => {
-    const wrapper = mountAntd(antd.List, {
+    const wrapper = mountAntd(List, {
       dataSource: ['A'],
       size: 'small',
       renderItem: (item: any) => createElement('div', null, item)
@@ -1012,7 +947,7 @@ describe('antd - 复合数据展示组件', () => {
       {key: '1', name: 'John', age: 30},
       {key: '2', name: 'Jane', age: 25},
     ]
-    const wrapper = mountAntd(antd.Table, {columns, dataSource, pagination: false})
+    const wrapper = mountAntd(Table, {columns, dataSource, pagination: false})
     expect(wrapper.find('.ant-table').exists()).toBe(true)
     expect(wrapper.text()).toContain('Name')
     expect(wrapper.text()).toContain('Age')
@@ -1027,7 +962,7 @@ describe('antd - 复合数据展示组件', () => {
     const dataSource = [
       {key: '1', a: '1'},
     ]
-    const wrapper = mountAntd(antd.Table, {columns, dataSource, bordered: true, pagination: false})
+    const wrapper = mountAntd(Table, {columns, dataSource, bordered: true, pagination: false})
     expect(wrapper.find('.ant-table-bordered').exists()).toBe(true)
   })
 
@@ -1038,7 +973,7 @@ describe('antd - 复合数据展示组件', () => {
     const dataSource = [
       {key: '1', a: '1'},
     ]
-    const wrapper = mountAntd(antd.Table, {columns, dataSource, size: 'small', pagination: false})
+    const wrapper = mountAntd(Table, {columns, dataSource, size: 'small', pagination: false})
     expect(wrapper.find('.ant-table-small').exists()).toBe(true)
   })
 
@@ -1049,7 +984,7 @@ describe('antd - 复合数据展示组件', () => {
     const dataSource = [
       {key: '1', a: '1'},
     ]
-    const wrapper = mountAntd(antd.Table, {columns, dataSource, loading: true, pagination: false})
+    const wrapper = mountAntd(Table, {columns, dataSource, loading: true, pagination: false})
     expect(wrapper.find('.ant-table').exists()).toBe(true)
   })
 })
@@ -1062,7 +997,7 @@ describe('antd - ConfigProvider', () => {
 
   it('ConfigProvider 包裹子组件不报错', () => {
     const wrapper = mountAntd(
-      antd.ConfigProvider,
+      ConfigProvider,
       {theme: {token: {colorPrimary: '#1890ff'}}},
       createElement('div', null, 'Configured Content')
     )
@@ -1071,7 +1006,7 @@ describe('antd - ConfigProvider', () => {
 
   it('ConfigProvider 支持 prefixCls', () => {
     const wrapper = mountAntd(
-      antd.ConfigProvider,
+      ConfigProvider,
       {prefixCls: 'custom'},
       createElement('div', null, 'Custom Prefix')
     )
@@ -1089,7 +1024,7 @@ describe('antd + React Hooks 组合场景', () => {
     const TestComponent = defineComponent(() => {
       const [checked, setChecked] = useState(false)
       return createElement(
-        antd.Switch,
+        Switch,
         {
           checked,
           onChange: (val: boolean) => setChecked(val)
@@ -1110,7 +1045,7 @@ describe('antd + React Hooks 组合场景', () => {
         effectFn(count)
       }, [count])
       return createElement(
-        antd.Button,
+        Button,
         {onClick: () => setCount(prev => prev + 1)},
         `Count: ${count}`
       )
@@ -1125,7 +1060,7 @@ describe('antd + React Hooks 组合场景', () => {
     const TestComponent = defineComponent(() => {
       const [count, setCount] = useState(0)
       return createElement(
-        antd.Button,
+        Button,
         {onClick: () => setCount(prev => prev + 1)},
         `Clicked ${count} times`
       )
@@ -1146,23 +1081,23 @@ describe('antd + React Hooks 组合场景', () => {
 describe('antd - 边缘情况', () => {
 
   it('组件不带任何 props 渲染', () => {
-    const wrapper = mountAntd(antd.Divider)
+    const wrapper = mountAntd(Divider)
     expect(wrapper.find('.ant-divider').exists()).toBe(true)
   })
 
   it('组件带 null children 渲染', () => {
-    const wrapper = mountAntd(antd.Button, null, null)
+    const wrapper = mountAntd(Button, null, null)
     expect(wrapper.find('button').exists()).toBe(true)
   })
 
   it('组件带 undefined props 渲染', () => {
-    const wrapper = mountAntd(antd.Tag, undefined, 'Tag')
+    const wrapper = mountAntd(Tag, undefined, 'Tag')
     expect(wrapper.find('.ant-tag').exists()).toBe(true)
   })
 
   it('组件在 Fragment 中渲染', () => {
-    const VBtn = defineComponent(antd.Button as any)
-    const VTag = defineComponent(antd.Tag as any)
+    const VBtn = defineComponent(Button as any)
+    const VTag = defineComponent(Tag as any)
     const TestComponent = defineComponent(() => {
       return createElement(Fragment, null,
         createElement(VBtn, null, 'Button'),
