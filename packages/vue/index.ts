@@ -19,7 +19,7 @@ import {
     createClassComponent,
     depsEqual,
     shallowEqual,
-    useExposeRef
+    createProxyRef
 } from "./util";
 
 /* ===================== 导入 ReactElement 层 ===================== */
@@ -487,7 +487,8 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
         inheritAttrs: false,
         setup(_, {slots, expose, emit}) {
             const attrs = useAttrs();
-            const ref = useExposeRef(expose);
+            const proxyRef = createProxyRef();
+            expose({ref: proxyRef});
             let finalRender = render;
             if (render.prototype instanceof React.Component) {
                 finalRender = createClassComponent(render)
@@ -535,10 +536,11 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                 const props = Object.fromEntries(entries) as typeof _props;
 
                 // 调用 React 组件函数 → 返回 ReactElement
-                const result = isForwardRef ? finalRender(props, ref) : finalRender(props);
+                // 传入 proxyRef 作为 forwardRef 的 ref 参数
+                const result = isForwardRef ? finalRender(props, proxyRef) : finalRender(props);
 
-                // 翻译 ReactElement → Vue vnode
-                return toVNode(result, {forwardRef: ref});
+                // 翻译 ReactElement → Vue vnode，传入 proxyRef 用于嵌套 forwardRef 场景
+                return toVNode(result, {forwardRef: proxyRef});
             }
         }
     })

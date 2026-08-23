@@ -10,7 +10,7 @@ import {
     useState,
     ReactNode,
 } from "./index";
-import {getCurrentInstance, shallowReactive, watch} from "vue";
+import {getCurrentInstance} from "vue";
 
 const PIXEL_PROPERTIES = [
     'width', 'height',
@@ -125,27 +125,37 @@ export function normalizeChildren(children: any[]): any[] {
     }).filter(Boolean)
 }
 
-type Expose = <Exposed extends Record<string, any> = Record<string, any>>(exposed?: Exposed | undefined) => void
-
-export function useExposeRef(expose: Expose) {
-    const exp: Record<string, unknown> = {};
-    expose(exp);
-    const ref = shallowReactive({current: null})
-    watch(ref, (val) => {
-        const next: Record<string, unknown> = val.current || {}
-        // 删除 exp 中多余的 key
-        for (const key in exp) {
-            if (!(key in next)) {
-                delete exp[key]
+/**
+ * 创建一个 Proxy ref，用于 forwardRef 组件的外部 ref 引用。
+ *
+ * 原理：
+ * 1. 外部（antd 组件、父组件）通过 proxyRef.current 读写内部 ref 值
+ * 2. Proxy 拦截 get/set，将 .current 操作委托给内部闭包变量 _current
+ * 3. 具有 __v_isRef=true，Vue 的 h() 能正确处理（通过 .value 设置 DOM 元素）
+ * 4. 内部 useRef 返回标准 {current, __v_isRef, value getter/setter} 对象
+ *
+ * 替代旧的 useExposeRef（shallowReactive + watch），避免：
+ *   - shallowReactive 没有 __v_isRef，Vue 的 h() 无法正确处理
+ *   - watch 对 ref.current 的响应式追踪干扰了正常的 ref 赋值
+ */
+export function createProxyRef() {
+    let _current: any = null;
+    const proxy = new Proxy({}, {
+        get(_, prop) {
+            if (prop === 'current') return _current;
+            if (prop === '__v_isRef') return true;
+            if (prop === 'value') return _current;
+            return Reflect.get(proxy, prop);
+        },
+        set(_, prop, value) {
+            if (prop === 'current' || prop === 'value') {
+                _current = value;
+                return true;
             }
+            return Reflect.set(proxy, prop, value);
         }
-        // 3️⃣ 复制 / 更新 next 中的 key
-        for (const key in next) {
-            exp[key] = next[key]
-        }
-        Object.setPrototypeOf(exp, Object.getPrototypeOf(next))
-    })
-    return ref;
+    });
+    return proxy;
 }
 
 export function createClassComponent<P, S = {}>(ComponentClass: typeof Component<P, S>) {
