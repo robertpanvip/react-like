@@ -520,6 +520,14 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                     ...cleanAttrs,
                     children
                 }
+                // @ts-ignore
+                if (fn && (fn.displayName === 'Row' || fn.name === 'Row')) {
+                    console.log('[Row] attrs keys:', Object.keys(attrs));
+                    console.log('[Row] has __reactChildren:', '__reactChildren' in attrs);
+                    console.log('[Row] children type:', typeof children, Array.isArray(children) ? 'array('+children.length+')' : '');
+                    console.log('[Row] fn name:', fn.name);
+                    console.log('[Row] isForwardRef:', isForwardRef);
+                }
                 const entries = Object.entries(_props).map(([key, value]) => {
                     if (key.startsWith('on') && typeof value === 'function') {
                         return [key, function (this: typeof _props, ...rest: unknown[]) {
@@ -538,6 +546,18 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                 // 调用 React 组件函数 → 返回 ReactElement
                 // 传入 proxyRef 作为 forwardRef 的 ref 参数
                 const result = isForwardRef ? finalRender(props, proxyRef) : finalRender(props);
+
+                // @ts-ignore
+                if (fn && (fn.displayName === 'Row' || fn.name === 'Row')) {
+                    console.log('[Row] result type:', result?.type?.toString());
+                    console.log('[Row] result type $$typeof:', result?.type?.$$typeof?.toString());
+                    console.log('[Row] result type constructor:', result?.type?.constructor?.name);
+                    console.log('[Row] result props keys:', result?.props ? Object.keys(result.props) : 'no props');
+                    console.log('[Row] result props.children:', typeof result?.props?.children);
+                    if (result?.props?.children && Array.isArray(result.props.children)) {
+                        console.log('[Row] result children length:', result.props.children.length);
+                    }
+                }
 
                 // 翻译 ReactElement → Vue vnode，传入 proxyRef 用于嵌套 forwardRef 场景
                 return toVNode(result, {forwardRef: proxyRef});

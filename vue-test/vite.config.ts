@@ -15,6 +15,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      'react': fileURLToPath(new URL('../packages/vue', import.meta.url)),
+      'react-dom': fileURLToPath(new URL('../packages/vue', import.meta.url)),
       '@react-like/vue': fileURLToPath(new URL('../packages/vue', import.meta.url)),
     },
   },

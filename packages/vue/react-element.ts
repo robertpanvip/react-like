@@ -261,8 +261,13 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
             provide(ctx._key, props.value ?? ctx._defaultValue)
             return () => {
               const kids = normalizeReactChildren(props.children)
+              console.log('[Provider] kids:', kids.length, 'type:', kids.map((k: any) => typeof k === 'object' ? k.$$typeof?.toString() : typeof k));
               if (kids.length === 0) return null
-              const vnodes = kids.map((c: any) => toVNodeImpl(c, options))
+              const vnodes = kids.map((c: any) => {
+                const v = toVNodeImpl(c, options)
+                console.log('[Provider] vnode:', v?.type?.toString?.() || v?.type, typeof v);
+                return v;
+              })
               return vnodes.length === 1 ? vnodes[0] : vnodes
             }
           }
