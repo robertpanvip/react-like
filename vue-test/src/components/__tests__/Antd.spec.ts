@@ -146,6 +146,7 @@ describe('antd - 基础展示组件', () => {
   it('Typography.Text 渲染文本', () => {
     const wrapper = mountAntd(Typography.Text, null, 'Hello Typography')
     expect(wrapper.find('.ant-typography').exists()).toBe(true)
+    console.log('DEBUG HTML:', wrapper.html().substring(0, 1000))
     expect(wrapper.text()).toContain('Hello Typography')
   })
 

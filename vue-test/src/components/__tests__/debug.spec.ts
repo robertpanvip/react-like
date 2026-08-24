@@ -9,7 +9,7 @@ describe('debug', () => {
     const TestComp = defineComponent(() => {
       console.log('TestComp render called')
       const el = createElement(VueComp, {type: 'primary'}, 'Click Me')
-      console.log('TestComp createElement result:', JSON.stringify(el, (key, val) => {
+      console.log('TestComp createElement result type:', typeof el, 'props:', JSON.stringify({...el.props, children: typeof el.props?.children === 'string' ? el.props.children : '[' + typeof el.props?.children + ']'}, (key, val) => {
         if (typeof val === 'function') return 'fn:' + (val.name || 'anon')
         if (typeof val === 'symbol') return val.toString()
         return val
