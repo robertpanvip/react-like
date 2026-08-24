@@ -14,6 +14,12 @@ import {
     Slots, onUnmounted,
 } from 'vue'
 import type {DefineSetupFnComponent, ObjectEmitsOptions} from 'vue'
+
+// 全局注册 Vue 的 inject 函数，供 CJS shim 使用
+// CJS shim 通过 globalThis.__vueInject 访问 Vue 的 inject 函数，
+// 避免 CJS 模块中 require('vue') 可能失败的问题
+(globalThis as any).__vueInject = inject;
+(globalThis as any).__vueGetCurrentInstance = getVueCurrentInstance;
 import {
     clone,
     createClassComponent,
@@ -26,6 +32,7 @@ import {
 import {
     REACT_ELEMENT_TYPE,
     REACT_FORWARD_REF_TYPE,
+    REACT_MEMO_TYPE,
     REACT_PROVIDER_TYPE,
     REACT_CONSUMER_TYPE,
     REACT_FRAGMENT_TYPE,
@@ -309,17 +316,16 @@ namespace React {
 
     export function useContext<T>(context: any): T {
         const inst = getCurrentInstance()
-        const val = inst?.provides[context?._key]
-        if (val === undefined && context?._defaultValue !== undefined) {
-            // fallback to inject approach for cases where Vue's provide/inject
-            // chain might be broken by our custom component wrappers
+        // 始终尝试 inject 以遍历 provide 链（即使 _defaultValue 为 null）
+        if (context?._key) {
             try {
-                const injected = inject(context._key, context._defaultValue)
-                return injected as T
-            } catch {
-                return context._defaultValue as T
+                const injected = inject(context._key, undefined as any)
+                if (injected !== undefined) return injected as T
+            } catch (e) {
             }
         }
+        // 回退到组件自身的 provides 或默认值
+        const val = context?._key ? inst?.provides[context._key] : undefined
         return (val !== undefined ? val : context?._defaultValue) as T
     }
 
@@ -446,6 +452,8 @@ export type RefAttributes<T> = React.RefAttributes<T>;
 export type ReactPortal = React.ReactPortal;
 export type ReactInstance = React.ReactInstance;
 
+export { toVNode } from './react-element';
+
 export type DefineComponent<Props extends Record<string, any>, E extends ObjectEmitsOptions = {}> =
     DefineSetupFnComponent<Props, E, any>
     & {
@@ -475,23 +483,69 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
     fn: T,
     slotMaps?: SlotMaps
 ): DefineComponent<P, ExtractEmits<P>> {
-    // 处理 forwardRef 对象
+    // 处理 forwardRef 对象 和 memo 对象
     let render: any = fn;
     let isForwardRef = false;
     if (fn && typeof fn === 'object' && (fn as any).$$typeof === REACT_FORWARD_REF_TYPE) {
         render = (fn as any).render;
         isForwardRef = true;
     }
+    // 解包 memo 对象：memo 内部可能是 forwardRef 或函数组件
+    if (fn && typeof fn === 'object' && (fn as any).$$typeof === REACT_MEMO_TYPE) {
+        render = (fn as any).type;
+        // 解包后再次检查是否为 forwardRef
+        if (render && typeof render === 'object' && (render as any).$$typeof === REACT_FORWARD_REF_TYPE) {
+            render = (render as any).render;
+            isForwardRef = true;
+        }
+    }
 
     const Comp = defineVueComponent<P>({
         inheritAttrs: false,
         setup(_, {slots, expose, emit}) {
             const attrs = useAttrs();
-            const proxyRef = createProxyRef();
+            // 读取用户通过 createElement 传递的 ref（存储为 __userRef 自定义 prop）
+            const userRef = (attrs as any).__userRef;
+            // 创建内部 proxyRef，当 internalRef.current 更新时自动同步到用户 ref
+            const proxyRef = createProxyRef((value) => {
+                if (userRef) {
+                    if (typeof userRef === 'function') {
+                        userRef(value);
+                    } else if (userRef && 'current' in userRef) {
+                        (userRef as any).current = value;
+                    }
+                }
+            });
             expose({ref: proxyRef});
             let finalRender = render;
-            if (render.prototype instanceof React.Component) {
+            // 检测是否为 React 类组件（class component）。
+            // 注意：CJS 模块中的类组件（如 LegacyMenuItem）继承的是 CJS shim 的 React.Component，
+            // 与桥接层的 React.Component 不是同一个类，因此 instanceof 检查会失败。
+            // 使用 prototype.render 或 prototype.isReactComponent 作为补充检测。
+            // 另外，CJS 模块中的类组件（如 @ant-design/react-slick 的 InnerSlider）使用 Babel 的
+            // _inherits 和 _classCallCheck 转换，其 prototype 的 [[Prototype]] 指向父类 prototype，
+            // 不同于普通函数的 Object.prototype，可作为检测依据。
+            const isClassComponent = typeof render === 'function' && render.prototype && (
+                render.prototype instanceof React.Component ||
+                typeof render.prototype.render === 'function' ||
+                (render.prototype).isReactComponent ||
+                // 检测 CJS 转换的类组件：prototype 的 [[Prototype]] 不是 Object.prototype
+                // 说明它继承了某个父类（如 React.Component）
+                (Object.getPrototypeOf(render.prototype) !== Object.prototype &&
+                 Object.getPrototypeOf(render.prototype) !== null)
+            );
+            // 额外检测：检查函数是否有原型方法（beyond constructor），
+            // 这是 Babel _createClass 转换的特征
+            const hasProtoMethods = typeof render === 'function' && render.prototype &&
+                Object.getOwnPropertyNames(render.prototype).filter(k => k !== 'constructor').length > 0;
+            if (isClassComponent || hasProtoMethods) {
                 finalRender = createClassComponent(render)
+            }
+            // 检查 finalRender 是否为 forwardRef 对象（createClassComponent 返回 forwardRef）
+            if (finalRender && typeof finalRender === 'object' && (finalRender as any).$$typeof === REACT_FORWARD_REF_TYPE) {
+                isForwardRef = true;
+                render = finalRender.render;
+                finalRender = render;
             }
             onUnmounted(() => {
                 const inst = getCurrentInstance()!
@@ -514,19 +568,11 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                 // 其次是 slots.default（Vue 插槽，用于 antd 的 render props 等场景）。
                 // 使用 __reactChildren 避免 slots.default() 返回 Vue VNode 导致 antd 无法渲染。
                 const children = attrs.__reactChildren ?? (slots.default ? slots.default() : undefined);
-                // 剥离 __reactChildren 防止其泄露到下游组件，避免被当作 DOM 属性渲染
-                const { __reactChildren: _rc, ...cleanAttrs } = attrs as any;
+                // 剥离 __reactChildren 和 __userRef 防止其泄露到下游组件，避免被当作 DOM 属性渲染
+                const { __reactChildren: _rc, __userRef: _ur, ...cleanAttrs } = attrs as any;
                 const _props = {
                     ...cleanAttrs,
                     children
-                }
-                // @ts-ignore
-                if (fn && (fn.displayName === 'Row' || fn.name === 'Row')) {
-                    console.log('[Row] attrs keys:', Object.keys(attrs));
-                    console.log('[Row] has __reactChildren:', '__reactChildren' in attrs);
-                    console.log('[Row] children type:', typeof children, Array.isArray(children) ? 'array('+children.length+')' : '');
-                    console.log('[Row] fn name:', fn.name);
-                    console.log('[Row] isForwardRef:', isForwardRef);
                 }
                 const entries = Object.entries(_props).map(([key, value]) => {
                     if (key.startsWith('on') && typeof value === 'function') {
@@ -546,18 +592,6 @@ export function defineComponent<P extends Record<string, any>, T extends (props:
                 // 调用 React 组件函数 → 返回 ReactElement
                 // 传入 proxyRef 作为 forwardRef 的 ref 参数
                 const result = isForwardRef ? finalRender(props, proxyRef) : finalRender(props);
-
-                // @ts-ignore
-                if (fn && (fn.displayName === 'Row' || fn.name === 'Row')) {
-                    console.log('[Row] result type:', result?.type?.toString());
-                    console.log('[Row] result type $$typeof:', result?.type?.$$typeof?.toString());
-                    console.log('[Row] result type constructor:', result?.type?.constructor?.name);
-                    console.log('[Row] result props keys:', result?.props ? Object.keys(result.props) : 'no props');
-                    console.log('[Row] result props.children:', typeof result?.props?.children);
-                    if (result?.props?.children && Array.isArray(result.props.children)) {
-                        console.log('[Row] result children length:', result.props.children.length);
-                    }
-                }
 
                 // 翻译 ReactElement → Vue vnode，传入 proxyRef 用于嵌套 forwardRef 场景
                 return toVNode(result, {forwardRef: proxyRef});

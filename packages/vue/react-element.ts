@@ -5,15 +5,14 @@
  *   - 以 ReactElement 作为对外交换格式（react-is / Children 等均基于此）
  *   - 内接 translator toVNode() 转为 Vue vnode，再由 Vue 渲染引擎上屏
  *
- * 符号对齐 react-is@19（React 19 transitional 符号族）。
- * 若要兼容 React 18，需将 REACT_ELEMENT_TYPE 切为 Symbol.for('react.element')。
+ * 符号对齐 React 18 符号族，兼容 antd v6 内部 $$typeof 判断。
  */
-import {h, provide, inject, createVNode, Fragment as VueFragment, defineComponent as defineVueComponent} from 'vue'
+import {h, provide, inject, getCurrentInstance, createVNode, Fragment as VueFragment, defineComponent as defineVueComponent} from 'vue'
 const Text = Symbol.for('v-txt')
 import {normalizeStyle} from './util'
 
 /* ===================== 符号族（React 19 transitional） ===================== */
-export const REACT_ELEMENT_TYPE    = Symbol.for('react.transitional.element')
+export const REACT_ELEMENT_TYPE    = Symbol.for('react.element')
 export const REACT_FRAGMENT_TYPE   = Symbol.for('react.fragment')
 export const REACT_FORWARD_REF_TYPE = Symbol.for('react.forward_ref')
 export const REACT_PROVIDER_TYPE   = Symbol.for('react.context')       // React19: Provider 用 react.context
@@ -241,6 +240,21 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
 
   // 4c. $$typeof 组件（forwardRef / memo / Provider / Consumer）
   if (typeof type === 'object' && type !== null) {
+    // 优先检查 $typeof === DEFINE_COMPONENT：如果组件已被 defineComponent 包装，
+    // 应使用 Vue 组件渲染机制（通过 h()），而不是 React 的 $$typeof 处理。
+    // 否则 clone 拷贝的 $$typeof（如 REACT_FORWARD_REF_TYPE）会导致绕开 defineComponent 的 children 处理。
+    if (type.$typeof === DEFINE_COMPONENT) {
+      const _vp = buildVNodeProps(props, vnodeKey, undefined)
+      if (elementRef != null) {
+        _vp.__userRef = elementRef
+      }
+      const _kids = normalizeReactChildren(props.children)
+      if (_kids.length > 0) {
+        _vp.__reactChildren = _kids.length === 1 ? _kids[0] : _kids
+      }
+      return h(type, _vp)
+    }
+    // 非 defineComponent 组件：按 React $$typeof 处理
     switch (type.$$typeof) {
       case REACT_FORWARD_REF_TYPE: {
         // 优先使用 ReactElement 自带的 ref（如 <Comp ref={handlesRef}>），
@@ -253,26 +267,27 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
         return toVNodeImpl(createElement(type.type, props), options)
       }
       case REACT_PROVIDER_TYPE: {
-        // Provider 使用 Vue 的 provide 机制传递 context value
+        // Provider 使用 Vue 的 provide 机制传递 context value。
+        // 必须在当前组件实例的 provides 上设置值，而不是创建子组件，
+        // 因为 CJS shim 的 useContext 通过 inject 查找父级 provides 链。
+        // ProviderWrapper 子组件方式会导致 inject 从当前组件的父级开始查找，
+        // 而 ProviderWrapper 是当前组件的子级，不在查找链上。
         const ctx = type._context
-        const ProviderWrapper = defineVueComponent({
-          name: 'ContextProvider',
-          setup(_, {slots}) {
-            provide(ctx._key, props.value ?? ctx._defaultValue)
-            return () => {
-              const kids = normalizeReactChildren(props.children)
-              console.log('[Provider] kids:', kids.length, 'type:', kids.map((k: any) => typeof k === 'object' ? k.$$typeof?.toString() : typeof k));
-              if (kids.length === 0) return null
-              const vnodes = kids.map((c: any) => {
-                const v = toVNodeImpl(c, options)
-                console.log('[Provider] vnode:', v?.type?.toString?.() || v?.type, typeof v);
-                return v;
-              })
-              return vnodes.length === 1 ? vnodes[0] : vnodes
-            }
-          }
-        })
-        return h(ProviderWrapper)
+        const value = props.value ?? ctx._defaultValue
+        const inst = getCurrentInstance()
+        if (inst) {
+          // 模拟 Vue 3 provide() 的行为：
+          // 创建一个继承自当前 provides 的新对象，并设置 key-value
+          const parentProvides = inst.provides
+          const newProvides = Object.create(parentProvides)
+          newProvides[ctx._key] = value
+          inst.provides = newProvides
+        }
+        // 直接渲染 children
+        const kids = normalizeReactChildren(props.children)
+        if (kids.length === 0) return null
+        const vnodes = kids.map((c: any) => toVNodeImpl(c, options))
+        return vnodes.length === 1 ? vnodes[0] : vnodes
       }
       case REACT_CONSUMER_TYPE: {
         const childFn = props.children
@@ -291,7 +306,13 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
       }
       default:
         // 未知 $$typeof 类型（或 Vue 组件对象）→ 尝试作为组件渲染，保留 children
-        const _vp = buildVNodeProps(props, vnodeKey, elementRef)
+        // 注意：这里 elementRef 直接传给 buildVNodeProps 会让 Vue 当作模板 ref 处理，
+        // 但我们希望 ref 通过 __userRef 手动转发。对于 defineComponent 包装的组件，
+        // 上面的 $typeof === DEFINE_COMPONENT 分支已处理。这里处理的是非 defineComponent 组件。
+        const _vp = buildVNodeProps(props, vnodeKey, undefined)
+        if (elementRef != null) {
+          _vp.__userRef = elementRef
+        }
         const _kids = normalizeReactChildren(props.children)
         if (_kids.length > 0) {
           _vp.__reactChildren = _kids.length === 1 ? _kids[0] : _kids
@@ -302,15 +323,36 @@ function toVNodeImpl(node: any, options?: ToVNodeOptions): any {
 
   // 4d. 函数组件（defineComponent 包装过的 Vue 组件）
   if (typeof type === 'function') {
-    const vp = buildVNodeProps(props, vnodeKey, elementRef)
+    let resolvedType = type
+    // 如果函数没有被 defineComponent 包装，说明是 antd 内部 CJS 代码创建的元素，
+    // 需要包装为 Vue 可挂载的组件
+    if (type.$typeof !== DEFINE_COMPONENT) {
+      const {defineComponent: wrap} = await_import_defineComponent()
+      let cached = typeCache.get(type)
+      if (!cached) {
+        cached = wrap(type as any)
+        typeCache.set(type, cached)
+      }
+      resolvedType = cached
+    }
+    // 用户 ref 通过 __userRef 传递，而非 vp.ref。
+    // 原因：vp.ref 会被 Vue 的 h() 当作模板 ref 处理，将组件 expose 的对象赋值给 ref.value，
+    // 导致用户期望的 ref.current 指向 expose 对象而非组件内部 ref 值。
+    // 使用 __userRef 作为自定义 prop，defineComponent 通过 attrs 读取并手动同步。
+    const vp = buildVNodeProps(props, vnodeKey, undefined)
+    if (elementRef != null) {
+      vp.__userRef = elementRef
+    }
     const kids = normalizeReactChildren(props.children)
-    if (kids.length === 0) return h(type, vp)
+    if (kids.length === 0) {
+      return h(resolvedType, vp)
+    }
     // 使用 __reactChildren 而非 children 传递原始 React 子节点。
     // 原因：h(type, vp) 中 vp.children 会被 Vue 视为 vnode 子节点（slots），
     // 导致 defineComponent 中 slots.default() 返回 Vue VNode 而非原始字符串/ReactElement。
     // 使用 __reactChildren 作为常规 prop 传递，defineComponent 通过 attrs 读取。
     vp.__reactChildren = kids.length === 1 ? kids[0] : kids
-    return h(type, vp)
+    return h(resolvedType, vp)
   }
 
   return null

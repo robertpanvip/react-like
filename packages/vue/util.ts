@@ -138,7 +138,7 @@ export function normalizeChildren(children: any[]): any[] {
  *   - shallowReactive 没有 __v_isRef，Vue 的 h() 无法正确处理
  *   - watch 对 ref.current 的响应式追踪干扰了正常的 ref 赋值
  */
-export function createProxyRef() {
+export function createProxyRef(onChange?: (value: any) => void) {
     let _current: any = null;
     const proxy = new Proxy({}, {
         get(_, prop) {
@@ -150,6 +150,7 @@ export function createProxyRef() {
         set(_, prop, value) {
             if (prop === 'current' || prop === 'value') {
                 _current = value;
+                onChange?.(value);
                 return true;
             }
             return Reflect.set(proxy, prop, value);
